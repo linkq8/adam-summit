@@ -108,9 +108,9 @@ func run() -> void:
 	await process_frame
 	await process_frame
 	var scroll = game.modal.get_node("WorldScroll")
-	check(scroll.get_child(0).get_child_count() == 20, "Five world headings and fifteen stage buttons")
+	check(scroll.get_child(0).get_children().filter(func(c): return c is Button).size() == 15 and scroll.get_child(0).get_children().filter(func(c): return c is Label).size() == 5, "Five world headings and fifteen stage buttons")
 	check(scroll.scroll_vertical > 0, "Map reveals selected later world")
-	var last_button = scroll.get_child(0).get_child(19)
+	var last_button = scroll.get_child(0).find_child("Stage14", true, false)
 	last_button.pressed.emit()
 	check(game.level == 14 and game.state == "lobby", "Last stage selectable")
 	game.start_race()

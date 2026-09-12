@@ -1,5 +1,6 @@
 extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
+const ICONS = preload("res://assets/ui/game-icons.svg")
 const Model = preload("res://scripts/race_model.gd")
 const SHEET = preload("res://assets/adam-motion.png")
 const KEY = preload("res://scripts/chroma.gdshader")
@@ -22,6 +23,13 @@ var terrain: Array[Sprite2D] = []
 var branches: Array[Sprite2D] = []
 var cap: Node2D
 var styles: Dictionary = {}
+var configured_model: RefCounted
+var offsets: Array[Vector2] = []
+var branch_offsets: Array[Vector2] = []
+var old_frame := -1
+var old_row := -1
+var old_hat := -1
+var old_pack := -1
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -61,50 +69,32 @@ func _process(dt: float) -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
 		return
 	var p: Dictionary = game.model.players[index]
+	if configured_model != game.model: configure_terrain()
+	var camera := camera_for(p)
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]
-		var y: float = plat.y - camera_for(p)
-		terrain[i].visible = y > -90 and y < view_height + 90 and game.model.platform_exists(index, i)
-		terrain[i].modulate = Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)
-		if terrain[i].visible:
-			if game.model.world == 0:
-				terrain[i].texture = PLATFORM
-				terrain[i].region_enabled = false
-				var sx: float = plat.w / (PLATFORM.get_width() * 0.86)
-				terrain[i].position = Vector2(game.model.platform_x(i) - plat.w / 0.86 / 2, y - 148 * sx * 0.9)
-				terrain[i].scale = Vector2(sx, sx * 0.9)
-			else:
-				terrain[i].texture = EXTRA_TILES if game.model.world >= 3 else WORLD_TILES
-				terrain[i].region_enabled = true
-				var tw := float(terrain[i].texture.get_width())
-				var th := float(terrain[i].texture.get_height())
-				var region_y: float = [0.0, 0.125, 0.5664, 0.13, 0.55][game.model.world]
-				terrain[i].region_rect = Rect2(0, th * region_y, tw, th * 0.33)
-				var sx: float = plat.w / (tw * 0.93)
-				terrain[i].position = Vector2(game.model.platform_x(i) - plat.w / 0.93 / 2, y - th * ([0.0, 0.02, 0.02, 0.03, 0.064][game.model.world]) * sx)
-				terrain[i].scale = Vector2.ONE * sx
-		branches[i].visible = plat.has("branch_x") and not p.branch_hits.has(i) and y > -90 and y < view_height + 90
-		if branches[i].visible:
-			var ratio: float = plat.branch_w / plat.w
-			branches[i].texture = terrain[i].texture
-			branches[i].region_enabled = terrain[i].region_enabled
-			branches[i].region_rect = terrain[i].region_rect
-			branches[i].scale = terrain[i].scale * ratio
-			branches[i].position = Vector2(plat.branch_x + (terrain[i].position.x - game.model.platform_x(i)) * ratio, y + (terrain[i].position.y - y) * ratio)
-			branches[i].modulate = Color("ffe093")
+		var y: float = plat.y - camera
+		var on_screen := y > -90 and y < view_height + 90
+		terrain[i].visible = on_screen and game.model.platform_exists(index, i)
+		if terrain[i].visible: terrain[i].position = Vector2(game.model.platform_x(i), y) + offsets[i]
+		branches[i].visible = on_screen and plat.has("branch_x") and not p.branch_hits.has(i)
+		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, y) + branch_offsets[i]
 	var frame := 1 if p.v.y < -80 else 2
 	if p.squash > 0.68: frame = 3
 	if game.state in ["countdown", "paused"]: frame = 0
 	if game.state == "finish": frame = 1
 	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
 	var row: int = game.player_outfits[index] if game.player_count > 1 else game.costume
-	hero.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
-	if hero.get_meta("outfit", -1) != row or hero.get_meta("pack", -1) != (game.player_packs[index] if game.player_count > 1 else game.backpack):
-		Wardrobe.style(hero, row, game.player_packs[index] if game.player_count > 1 else game.backpack)
-		hero.set_meta("outfit", row)
-		hero.set_meta("pack", game.player_packs[index] if game.player_count > 1 else game.backpack)
-	cap.position = Wardrobe.HEADS[frame] - cell / 2
-	cap.queue_redraw()
+	if frame != old_frame or row != old_row: hero.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
+	var pack: int = game.player_packs[index] if game.player_count > 1 else game.backpack
+	if row != old_row or pack != old_pack:
+		Wardrobe.style(hero, row, pack)
+		old_pack = pack
+	var hat: int = game.player_hats[index] if game.player_count > 1 else game.hat
+	if old_hat != hat or frame != old_frame:
+		cap.position = Wardrobe.HEADS[frame] - cell / 2
+		cap.queue_redraw()
+	old_hat = hat; old_frame = frame; old_row = row
 	hero.position = Vector2(p.p.x, p.p.y - camera_for(p) - 65)
 	hero.flip_h = p.face < 0
 	var squash: float = 0 if game.low_detail else p.squash
@@ -112,13 +102,13 @@ func _process(dt: float) -> void:
 	hero.scale = hero.scale.lerp(Vector2(size * (1 + squash * 0.09), size * (1 - squash * 0.1)), 1.0 if game.low_detail else minf(1, dt * 22))
 	hero.rotation = 0 if game.low_detail else lerpf(hero.rotation, clampf(p.v.x / 310.0, -1, 1) * 0.06, minf(1, dt * 10))
 	hero.modulate.a = 0.7 if p.invulnerable > 0 else 1.0
-	if game.state == "racing":
+	if game.state == "racing" and not sparkles.is_empty():
 		for s in sparkles:
 			s.life -= dt
 			s.pos += s.vel * dt
 			s.vel.y += 140 * dt
 		sparkles = sparkles.filter(func(s): return s.life > 0)
-	if game.state == "racing":
+	if game.state == "racing" and not debris.is_empty():
 		for piece in debris:
 			piece.life -= dt
 			piece.pos += piece.vel * dt
@@ -148,21 +138,14 @@ func round_box(rect: Rect2, color: Color, radius: int = 12, border: Color = Colo
 	var style: StyleBoxFlat = styles[key]
 	draw_style_box(style, rect)
 
+func icon(kind: int, at: Vector2, size: float, tint: Color = Color.WHITE) -> void:
+	draw_texture_rect_region(ICONS, Rect2(at - Vector2.ONE * size / 2, Vector2.ONE * size), Rect2(kind * 128, 0, 128, 128), tint)
+
 func star(at: Vector2, radius: float, tint: Color = Color("ffce4c")) -> void:
-	var points := PackedVector2Array()
-	for j in range(10):
-		var a := -PI / 2 + j * PI / 5
-		points.append(at + Vector2(cos(a), sin(a)) * (radius if j % 2 == 0 else radius * 0.47))
-	draw_colored_polygon(points, tint)
-	points.append(points[0])
-	draw_polyline(points, Color("cc8730"), 1.8, true)
-	draw_circle(at + Vector2(-3, -4), radius * 0.18, Color("fff0ad"))
+	icon(0, at, radius * 64.0 / 26.0, Color(1, 1, 1, tint.a))
 
 func flower(at: Vector2, tint: Color) -> void:
-	draw_line(at, at + Vector2(0, 11), Color("398d52"), 2)
-	for j in range(5):
-		draw_circle(at + Vector2(cos(j * TAU / 5), sin(j * TAU / 5)) * 3.8, 3.4, tint)
-	draw_circle(at, 2.8, Color("ffd966"))
+	icon(1 if tint.g > 0.8 else 2, at, 32)
 
 func cloud(at: Vector2, s: float, alpha: float) -> void:
 	var c := Color(1, 1, 1, alpha)
@@ -314,19 +297,7 @@ func draw_creature(at: Vector2, world: int) -> void:
 			draw_circle(at + Vector2(dx + 1, -28), 2.5, Color("334441"))
 
 func draw_power(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
-	var color: Color = [Color("8ed5f1"), Color("ef9e9c"), Color("a5e4cd")][kind]
-	draw_circle(at, 23 * scale_factor, Color("fff4d7"))
-	draw_circle(at, 19 * scale_factor, color)
-	if kind == 0:
-		var points := PackedVector2Array()
-		for pos in [Vector2(-10, -11), Vector2(10, -11), Vector2(10, 1), Vector2(0, 12), Vector2(-10, 1)]: points.append(at + pos * scale_factor)
-		draw_colored_polygon(points, Color("fffbea"))
-	elif kind == 1:
-		draw_arc(at - Vector2(0, 3) * scale_factor, 10 * scale_factor, 0, PI, 20, Color("fffbea"), 6 * scale_factor, true)
-		for dx in [-10, 10]: draw_line(at + Vector2(dx, -3) * scale_factor, at + Vector2(dx, -11) * scale_factor, Color("fffbea"), 6 * scale_factor, true)
-	else:
-		draw_arc(at, 12 * scale_factor, 0, TAU, 24, Color("fffbea"), 2 * scale_factor, true)
-		draw_circle(at + Vector2(-5, -5) * scale_factor, 3 * scale_factor, Color("fffbea"))
+	icon(kind + 3, at, 64 * scale_factor)
 
 func draw_finish(at: Vector2) -> void:
 	var world: int = game.model.world
@@ -357,3 +328,32 @@ func draw_finish(at: Vector2) -> void:
 
 func camera_for(p: Dictionary) -> float:
 	return p.camera - maxf(0, view_height - 600) * 0.65
+
+func configure_terrain() -> void:
+	configured_model = game.model
+	offsets.clear(); branch_offsets.clear()
+	for i in range(terrain.size()):
+		var plat: Dictionary = game.model.platforms[i]
+		var tile: Sprite2D = terrain[i]
+		tile.modulate = Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)
+		var offset := Vector2.ZERO
+		if game.model.world == 0:
+			tile.texture = PLATFORM; tile.region_enabled = false
+			var sx: float = plat.w / (PLATFORM.get_width() * 0.86)
+			tile.scale = Vector2(sx, sx * 0.9)
+			offset = Vector2(-plat.w / 0.86 / 2, -148 * sx * 0.9)
+		else:
+			tile.texture = EXTRA_TILES if game.model.world >= 3 else WORLD_TILES
+			tile.region_enabled = true
+			var tw := float(tile.texture.get_width()); var th := float(tile.texture.get_height())
+			tile.region_rect = Rect2(0, th * [0.0, 0.125, 0.5664, 0.13, 0.55][game.model.world], tw, th * 0.33)
+			var sx: float = plat.w / (tw * 0.93)
+			tile.scale = Vector2.ONE * sx
+			offset = Vector2(-plat.w / 0.93 / 2, -th * [0.0, 0.02, 0.02, 0.03, 0.064][game.model.world] * sx)
+		offsets.append(offset)
+		var ratio: float = float(plat.get("branch_w", plat.w)) / plat.w
+		var branch: Sprite2D = branches[i]
+		branch.texture = tile.texture; branch.region_enabled = tile.region_enabled
+		branch.region_rect = tile.region_rect; branch.scale = tile.scale * ratio
+		branch.modulate = Color("ffe093")
+		branch_offsets.append(offset * ratio)

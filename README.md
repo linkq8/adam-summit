@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.7.0](https://github.com/linkq8/adam-summit/releases/tag/v0.7.0)**
+**[تحميل النسخة التجريبية 0.7.1](https://github.com/linkq8/adam-summit/releases/tag/v0.7.1)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
@@ -11,8 +11,9 @@
 - القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
 - إعدادات دقة التلفاز: متوازنة 1080p، دقة الشاشة الأصلية، أو اقتصادية 720p.
 
-![اختيار اللاعبين](docs/players-tv-07.png)
-![العوالم](docs/worlds-tv-07.png)
+![القائمة الرئيسية](docs/08-tv-home.png)
+![العوالم](docs/08-tv-worlds.png)
+![اختيار اللاعبين](docs/08-tv-players.png)
 ![أربعة لاعبين](docs/four-tv-07.png)
 
 ## التحديث من داخل اللعبة
@@ -37,7 +38,7 @@ For Android, install the Android build template and SDK/JDK, then run `python3 s
 
 ## Validation and device limits
 
-Simulation, feature, UI, controller-menu and four-player progression tests passed. Live GitHub metadata retrieval and APK download/hash verification passed. The native Android installer opened and completed an update on an emulator. A desktop four-player 1080p sample measured 58 FPS with 22.2ms p95 frame time; this is not a Shield or Xiaomi hardware measurement.
+Simulation, feature, UI, controller-menu and four-player progression tests passed. Live GitHub metadata retrieval and APK download/hash verification passed. The native Android installer opened and completed an update on an emulator. The 0.7.1 comparable desktop stress test reduced median draw calls from 799 to 187 and four-view scene-update CPU time from 278.7 to 130.3 µs. Uncapped frame p95 decreased from 20.788 to 5.051 ms. These are desktop measurements, not Shield or Xiaomi hardware results. See [benchmark method and limits](design/PERFORMANCE-071.md).
 
 Android requires OpenGL ES 3.0. The original GLES2-only Full HD Mi TV Stick is unsupported. Newer Xiaomi sticks, Shield, individual Xbox/PlayStation/Nintendo controller models, foldables and physical 4K TV performance still require hardware validation. Android may expose a lower-resolution app surface than the television's panel resolution.
 
@@ -54,4 +55,4 @@ godot --headless --path . --script tests/test_four_updates.gd -- --test
 
 ## Design and assets
 
-The TV profile selection takes inspiration from [Netflix's profile cards on Mobbin](https://mobbin.com/screens/9b0cfc61-f627-4691-b3a8-b4ea35110aad), adapted to the game's Arabic interface and original cartoon artwork. The original reference photograph, personal files and signing profiles are excluded. Font licensing is in `assets/FONT-LICENSE.txt`.
+The 0.7.1 menus use original painterly camp and island artwork, Lalezar Arabic headings and Vazirmatn body text, informed by [Mobbin references](https://mobbin.com/screens/2656db04-1eb5-4568-9e7d-132256423855). See [design rationale](DESIGN.md) and [generated-art prompts](design/ART-080.md). No gameplay features were added in this refinement. The original reference photograph, personal files and signing profiles are excluded. Font licensing is in `assets/FONT-LICENSE.txt` and `assets/fonts/*OFL.txt`.

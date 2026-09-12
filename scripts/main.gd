@@ -2,13 +2,18 @@ extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const Model = preload("res://scripts/race_model.gd")
 const Stage = preload("res://scripts/stage.gd")
-const FONT = preload("res://assets/Arabic.ttf")
+const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
+const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
+const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
+var world_art: Texture2D
+const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
+var menu_art: Texture2D
 const BACKGROUND = preload("res://assets/garden-v2.png")
 const SHEET = preload("res://assets/adam-motion.png")
 const KEY = preload("res://scripts/chroma.gdshader")
 const BLUE := Color("167a95")
 const ORANGE := Color("cc6542")
-const INK := Color("214c4e")
+const INK := Color("173f3e")
 const Worlds = preload("res://scripts/worlds.gd")
 const DIFFICULTIES := ["رحلة هادئة", "مغامرة", "تحدّي"]
 var model = Model.new(true, 1)
@@ -243,6 +248,7 @@ func label(parent: Node, text: String, rect: Rect2, font_size: int = 22, color: 
 	item.horizontal_alignment = alignment
 	item.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	item.add_theme_font_size_override("font_size", font_size)
+	if font_size >= 28: item.add_theme_font_override("font", DISPLAY_FONT)
 	item.add_theme_color_override("font_color", color)
 	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(item)
@@ -253,33 +259,37 @@ func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary
 	b.text = text
 	b.position = rect.position
 	b.size = rect.size
-	b.add_theme_font_size_override("font_size", 18 if tv else 21)
-	b.add_theme_color_override("font_color", Color("fff9e8") if primary else INK)
-	b.add_theme_color_override("font_hover_color", Color("fff9e8") if primary else INK)
-	b.add_theme_color_override("font_focus_color", Color("fff9e8") if primary else INK)
+	b.add_theme_font_size_override("font_size", 21 if tv else 22)
+	b.add_theme_color_override("font_color", INK)
+	b.add_theme_color_override("font_hover_color", INK)
+	b.add_theme_color_override("font_focus_color", INK)
 	for kind in ["normal", "hover", "pressed", "focus"]:
 		var s := StyleBoxFlat.new()
-		s.bg_color = Color("287b68") if primary else Color("edf1de")
+		s.bg_color = Color("f3c45e") if primary else Color("fff5dc")
+		s.border_color = Color("b8863e") if primary else Color("c8b994")
+		s.set_border_width_all(1)
 		if kind == "hover" or kind == "pressed":
 			s.bg_color = s.bg_color.lightened(0.10)
-		s.set_corner_radius_all(14)
-		s.set_content_margin_all(8)
+		s.set_corner_radius_all(12)
+		s.set_content_margin_all(5)
 		if kind == "focus":
 			s.bg_color = Color.TRANSPARENT
-			s.border_color = Color("e9b542")
+			s.border_color = Color("dd7546")
 			s.set_border_width_all(4)
 		b.add_theme_stylebox_override(kind, s)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.pressed.connect(callback)
 	parent.add_child(b)
 	return b
 
 func clear_modal() -> void:
+	queue_redraw()
 	illustration = null
 	for child in modal.get_children():
 		modal.remove_child(child)
 		child.queue_free()
 
-func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0) -> Sprite2D:
+func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0, pack_override: int = -1, hat_override: int = -1) -> Sprite2D:
 	var sprite := Sprite2D.new()
 	sprite.texture = SHEET
 	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
@@ -289,55 +299,32 @@ func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0
 	sprite.scale = Vector2.ONE * height / cell.y
 	sprite.material = ShaderMaterial.new()
 	sprite.material.shader = KEY
-	Wardrobe.style(sprite, row, preview_pack if state == "wardrobe" else backpack)
+	Wardrobe.style(sprite, row, pack_override if pack_override >= 0 else (preview_pack if state == "wardrobe" else backpack))
 	var cap := Node2D.new()
 	cap.position = Wardrobe.HEADS[frame] - cell / 2
-	var selected_hat := preview_hat if state == "wardrobe" else hat
+	var selected_hat := hat_override if hat_override >= 0 else (preview_hat if state == "wardrobe" else hat)
 	cap.draw.connect(func(): Wardrobe.draw_cap(cap, selected_hat))
 	sprite.add_child(cap)
 	parent.add_child(sprite)
 	return sprite
 
 func show_lobby() -> void:
-	if tv:
-		show_tv_lobby()
-		return
-	state = "lobby"
-	for v in views: v.hide()
-	hud.hide()
-	clear_modal()
+	if tv: show_tv_lobby(); return
+	state = "lobby"; clear_modal(); hud.hide()
+	for view in views: view.hide()
 	var r := menu_rect
-	box(modal, r, Color(1, 0.984, 0.94, 0.97), Color("fff9e5"), 32)
-	var compact := r.size.y < 730
-	var hero_height := 135.0 if compact else 205.0
-	label(modal, "مغامرات آدم", Rect2(r.position + Vector2(15, 12), Vector2(r.size.x - 30, 66)), 39)
-	label(modal, "كل قفزة… حكاية!", Rect2(r.position + Vector2(15, 75), Vector2(r.size.x - 30, 34)), 20, BLUE)
-	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 114 + hero_height / 2), hero_height)
-	var y := r.position.y + 120 + hero_height
-	var gap := 58.0 if compact else 70.0
-	if tv:
-		button(modal, "لاعب واحد" + (" ✓" if player_count == 1 else ""), Rect2(r.position.x + 18, y, r.size.x / 2 - 24, 46), func(): player_count = 1; layout_ui())
-		button(modal, "لاعبان" + (" ✓" if player_count > 1 else ""), Rect2(r.position.x + r.size.x / 2 + 6, y, r.size.x / 2 - 24, 46), func(): player_count = 2; layout_ui())
-		y += gap
-	button(modal, Worlds.title(level) + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), show_worlds)
-	y += gap
-	button(modal, DIFFICULTIES[difficulty] + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby())
-	y += gap
-	if player_count == 1:
-		button(modal, "ملابس ومكافآت آدم  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): show_wardrobe(true))
-	else:
-		button(modal, "الوضع: " + ("تعاون عائلي" if cooperative else "سباق إلى القمة") + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): cooperative = not cooperative; save_options(); show_lobby())
-	y += gap
-	var start := button(modal, "ابدأ المغامرة  ▶" if player_count == 1 else ("لنصل معًا  ▶" if cooperative else "ابدأ السباق  ▶"), Rect2(r.position.x + 20, y, r.size.x - 40, 60), begin_adventure, true)
-	y += 70
-	if not saved_game.is_empty() and player_count == 1:
-		button(modal, "أكمل رحلتك المحفوظة", Rect2(r.position.x + 20, y, r.size.x - 40, 44), restore_journey)
-		y += 64
-	button(modal, "الإعدادات", Rect2(r.position.x + 20, y, r.size.x / 2 - 25, 46), func(): settings_return = "lobby"; show_settings())
-	button(modal, "كيف ألعب؟", Rect2(r.position.x + r.size.x / 2 + 5, y, r.size.x / 2 - 25, 46), show_tutorial)
-	if tv:
-		label(modal, "%s\n%s" % [controller_text(0), controller_text(1)] if player_count > 1 else controller_text(0), Rect2(20, canvas_size.y - 130, maxf(180, menu_rect.position.x - 35), 85), 16)
-	start.grab_focus()
+	var shift := maxf(0, 820 - r.size.y)
+	var title := label(modal, "مغامرات آدم", Rect2(r.position + Vector2(0, -10), Vector2(r.size.x, 100)), 64, Color("fff4d4"))
+	title.add_theme_color_override("font_outline_color", Color("173f3e")); title.add_theme_constant_override("outline_size", 6)
+	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 214 - shift / 2), 245 - shift)
+	box(modal, Rect2(r.position + Vector2(0, 343 - shift), Vector2(r.size.x, r.size.y - 343 + shift)), Color("123f40"), Color.TRANSPARENT, 24)
+	button(modal, "ابدأ المغامرة", Rect2(r.position + Vector2(18, 364 - shift), Vector2(r.size.x - 36, 64)), begin_adventure, true).grab_focus()
+	button(modal, Worlds.title(level), Rect2(r.position + Vector2(18, 443 - shift), Vector2(r.size.x - 36, 56)), show_worlds)
+	button(modal, "ملابس آدم", Rect2(r.position + Vector2(18, 513 - shift), Vector2(r.size.x - 36, 54)), func(): show_wardrobe(true))
+	button(modal, DIFFICULTIES[difficulty], Rect2(r.position + Vector2(18, 581 - shift), Vector2(r.size.x - 36, 54)), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby())
+	button(modal, "الإعدادات", Rect2(r.position + Vector2(18, 649 - shift), Vector2((r.size.x - 48) / 2, 54)), func(): settings_return = "lobby"; show_settings())
+	button(modal, "كيف ألعب؟", Rect2(r.position + Vector2(r.size.x / 2 + 6, 649 - shift), Vector2((r.size.x - 48) / 2, 54)), show_tutorial)
+	if not saved_game.is_empty(): button(modal, "أكمل رحلتك المحفوظة", Rect2(r.position + Vector2(18, 717 - shift), Vector2(r.size.x - 36, 54)), restore_journey)
 	queue_redraw()
 
 func controller_text(i: int) -> String:
@@ -403,6 +390,7 @@ func build_hud() -> void:
 	hud.visible = state in ["countdown", "racing", "paused", "finish"]
 
 func start_race() -> void:
+	menu_art = null; world_art = null
 	if sounds.has("help"): sounds.help.stop()
 	player_count = clampi(player_count, 1, 4) if tv else 1
 	easy = difficulty == 0
@@ -814,6 +802,16 @@ func capture_lobby() -> void:
 	get_tree().quit()
 
 func _draw() -> void:
+	if state == "lobby":
+		var art := get_menu_art()
+		var ratio := maxf(canvas_size.x / art.get_width(), canvas_size.y / art.get_height())
+		var size := art.get_size() * ratio
+		draw_texture_rect(art, Rect2(Vector2(-(size.x - canvas_size.x) * (0.3 if not tv else 0.5), (canvas_size.y - size.y) / 2), size), false)
+		return
+	if state in ["players", "worlds", "wardrobe", "settings", "updates", "tutorial"]:
+		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("f5edda"))
+		draw_rect(Rect2(0, 0, canvas_size.x, 12), Color("cf7652"))
+		return
 	if state in ["racing", "countdown", "paused", "finish"] and model.world > 0:
 		var texture: Texture2D = Stage.EXTRA_BG if model.world >= 3 else Stage.WORLD_BG
 		var panel: int = model.world - (3 if model.world >= 3 else 1)
@@ -849,12 +847,13 @@ func show_worlds() -> void:
 	scroll.add_child(content)
 	for world in range(Worlds.WORLDS.size()):
 		var y := world * 150.0
-		label(content, Worlds.WORLDS[world], Rect2(8, y, content.custom_minimum_size.x - 16, 36), 23)
+		island(content, world, Rect2(4, y, 108, 137))
+		label(content, Worlds.WORLDS[world], Rect2(119, y + 2, content.custom_minimum_size.x - 123, 42), 28)
 		for chapter in range(3):
 			var id := world * 3 + chapter
-			var width := (content.custom_minimum_size.x - 32) / 3
-			var b := button(content, "\u2066%d–%d\u2069\n%s" % [world + 1, chapter + 1, Worlds.NAMES[id] if id <= unlocked else "لم تُفتح بعد"], Rect2(8 + (2 - chapter) * (width + 8), y + 45, width, 78), func(): level = id; show_lobby(), id == level)
-			b.add_theme_font_size_override("font_size", 15)
+			var width := (content.custom_minimum_size.x - 135) / 3
+			var b := button(content, str(chapter + 1), Rect2(120 + chapter * (width + 3), y + 61, width - 3, 54), func(): level = id; show_lobby(), id == level)
+			b.name = "Stage%d" % id
 			b.disabled = id > unlocked
 	scroll.set_deferred("scroll_vertical", (level / 3) * 150)
 	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 85), Vector2(r.size.x - 50, 58)), show_lobby).grab_focus()
@@ -909,41 +908,44 @@ func selection_surface(title: String, subtitle: String, next_state: String) -> v
 	state = next_state
 	clear_modal(); hud.hide()
 	for view in views: view.hide()
-	box(modal, Rect2(40, 24, 1200, 672), Color("fff9e9"), Color.TRANSPARENT, 28)
-	label(modal, title, Rect2(80, 42, 1120, 64), 40)
-	label(modal, subtitle, Rect2(80, 111, 1120, 40), 21, BLUE)
-	label(modal, "العصا أو الأسهم للتنقّل    •    الزر السفلي للاختيار    •    الزر الأيمن للرجوع", Rect2(70, 646, 1140, 32), 18)
+	label(modal, title, Rect2(72, 34, 1136, 78), 50, INK)
+	label(modal, subtitle, Rect2(90, 109, 1100, 36), 21, Color("47675e"))
+	box(modal, Rect2(82, 159, 1116, 2), Color("d1bf99"), Color.TRANSPARENT, 0)
+	label(modal, "الأسهم للتنقّل    •    الزر السفلي للاختيار    •    الزر الأيمن للرجوع", Rect2(90, 673, 1100, 28), 18, Color("47675e"))
+	queue_redraw()
 
 func show_tv_lobby() -> void:
-	selection_surface("مغامرات آدم", "اختر رفيقك وعالمك… وانطلق إلى القمّة", "lobby")
+	state = "lobby"; clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var title := label(modal, "مغامرات آدم", Rect2(730, 50, 480, 114), 76, Color("fff3d0"))
+	label(modal, "القمة التالية… تنتظرك", Rect2(760, 165, 430, 37), 23, Color("e9d9ae"))
+	var spacing := 170.0 if player_count > 2 else 215.0
+	var height := 270.0 if player_count > 2 else 355.0
 	for i in range(player_count):
-		var columns := mini(player_count, 2)
-		var w := 585.0 / columns - 12
-		var x := 105 + (i % columns) * (w + 12)
-		var h := 163.0 if player_count > 2 else 340.0
-		var y := 180 + (i / columns) * (h + 14)
-		box(modal, Rect2(x, y, w, h), [Color("e3eee3"), Color("f9e6d4"), Color("e6f0cf"), Color("eee2f4")][i], Color.TRANSPARENT, 20)
-		portrait(modal, player_outfits[i], Vector2(x + w / 2, y + h * 0.44), h * 0.70)
-		label(modal, "اللاعب %d" % (i + 1), Rect2(x, y + h - 42, w, 36), 23)
-	button(modal, "اختيار اللاعبين والملابس", Rect2(105, 541, 585, 58), show_players)
-	var x := 745.0
-	button(modal, "عدد اللاعبين: %d" % player_count, Rect2(x, 180, 430, 55), func(): player_count = player_count % 4 + 1; show_tv_lobby())
-	button(modal, Worlds.title(level), Rect2(x, 251, 430, 55), show_worlds)
-	button(modal, DIFFICULTIES[difficulty], Rect2(x, 322, 430, 55), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())
-	button(modal, "تعاون" if cooperative else "سباق إلى القمة", Rect2(x, 393, 430, 55), func(): cooperative = not cooperative; save_options(); show_tv_lobby())
-	button(modal, "ابدأ المغامرة", Rect2(x, 470, 430, 64), begin_adventure, true).grab_focus()
-	button(modal, "الإعدادات والتحديث", Rect2(x, 550, 430, 49), func(): settings_return = "lobby"; show_settings())
+		var at := Vector2(360 - (player_count - 1) * spacing / 2 + i * spacing, 496 - (18 if i % 2 == 0 else 0))
+		var avatar := portrait(modal, player_outfits[i] if player_count > 1 else costume, at, height, 0, player_packs[i] if player_count > 1 else backpack, player_hats[i] if player_count > 1 else hat)
+	button(modal, "ابدأ المغامرة", Rect2(792, 232, 380, 76), begin_adventure, true).grab_focus()
+	button(modal, "العالم: " + Worlds.WORLDS[level / 3], Rect2(792, 327, 380, 59), show_worlds)
+	button(modal, "اللاعبون والملابس · %d" % player_count, Rect2(792, 402, 380, 59), show_players)
+	button(modal, DIFFICULTIES[difficulty], Rect2(792, 477, 183, 57), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())
+	button(modal, "تعاون" if cooperative else "سباق", Rect2(989, 477, 183, 57), func(): cooperative = not cooperative; save_options(); show_tv_lobby())
+	button(modal, "الإعدادات", Rect2(792, 552, 183, 54), func(): settings_return = "lobby"; show_settings())
+	button(modal, "كيف ألعب؟", Rect2(989, 552, 183, 54), show_tutorial)
+	label(modal, "اختر عالمك. جهّز رفيقك. وانطلق!", Rect2(90, 641, 580, 43), 27, Color("fff5d4"))
 	queue_redraw()
 
 func show_players(focus_index: int = -1) -> void:
-	selection_surface("اختيار اللاعبين", "اختر الملابس • يمكن تخصيص الريموت للاعب واحد", "players")
+	selection_surface("رفاق المغامرة", "لكل لاعب أسلوبه… اختاروا ملابسكم", "players")
+	label(modal, "عدد اللاعبين", Rect2(297, 175, 177, 42), 21)
+	for count in range(1, 5):
+		button(modal, "%d" % count, Rect2(490 + (count - 1) * 78, 174, 64, 43), func(): player_count = count; show_players(), player_count == count)
 	var controls: Array[Button] = []
 	for i in range(player_count):
 		var width := minf(400, 1120.0 / player_count - 16)
 		var x := (1280 - (width + 16) * player_count + 16) / 2 + i * (width + 16)
-		box(modal, Rect2(x, 164, width, 409), [Color("e3eee3"), Color("f9e6d4"), Color("e6f0cf"), Color("eee2f4")][i], Color.TRANSPARENT, 20)
-		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 175, width, 35), 23)
-		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 294), 159)
+		box(modal, Rect2(x, 234, width, 388), [Color("dce9e4"), Color("f5dfce"), Color("e4e8c8"), Color("e8ddec")][i], Color.TRANSPARENT, 20)
+		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 240, width, 38), 23)
+		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 344), 130)
 		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
 		for child in avatar.get_children(): child.queue_free()
 		var cap := Node2D.new(); cap.position = Wardrobe.HEADS[0] - Vector2(SHEET.get_width() / 8.0, SHEET.get_height() / 4.0)
@@ -953,41 +955,47 @@ func show_players(focus_index: int = -1) -> void:
 			var names := [Wardrobe.OUTFITS, Wardrobe.PACKS, Wardrobe.HATS]
 			var values := [player_outfits, player_packs, player_hats]
 			var idx := i * 4 + category
-			controls.append(button(modal, names[category][values[category][i]], Rect2(x + 12, 379 + category * 46, width - 24, 39), func():
+			controls.append(button(modal, names[category][values[category][i]], Rect2(x + 12, 420 + category * 48, width - 24, 43), func():
 				values[category][i] = (values[category][i] + 1) % names[category].size()
 				if i == 0: costume = player_outfits[0]; backpack = player_packs[0]; hat = player_hats[0]
 				save_options(); show_players(idx)))
-		controls.append(button(modal, "ريموت" if remote_player == i else ("يد متصلة" if slots[i] in Input.get_connected_joypads() else "يد تحكم"), Rect2(x + 12, 520, width - 24, 40), func():
+		controls.append(button(modal, "ريموت" if remote_player == i else ("يد متصلة" if slots[i] in Input.get_connected_joypads() else "يد تحكم"), Rect2(x + 12, 568, width - 24, 43), func():
 			remote_player = -1 if remote_player == i else i
 			save_options()
 			show_players(i * 4 + 3)))
-	var done := button(modal, "جاهزون — اختيار العالم", Rect2(405, 589, 470, 50), show_worlds, true)
+	var done := button(modal, "جاهزون… إلى العالم", Rect2(903, 174, 289, 43), show_worlds, true)
 	if focus_index >= 0 and focus_index < controls.size(): controls[focus_index].grab_focus()
 	else: done.grab_focus()
 
+func island(parent: Node, world: int, rect: Rect2) -> TextureRect:
+	var preview := TextureRect.new()
+	preview.position = rect.position; preview.size = rect.size
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if world_art == null: world_art = load(WORLD_ART_PATH)
+	var atlas := AtlasTexture.new(); atlas.atlas = world_art
+	var lefts := [0.0, 462.0, 890.0, 1303.0, 1738.0]
+	var widths := [457.0, 421.0, 411.0, 434.0, 434.0]
+	var factor := world_art.get_width() / 2172.0
+	atlas.region = Rect2(lefts[world] * factor, 0, widths[world] * factor, world_art.get_height())
+	preview.texture = atlas; parent.add_child(preview)
+	return preview
+
 func show_tv_worlds() -> void:
-	selection_surface("اختر العالم", "ثلاث مراحل في كل عالم • تابع الرحلة بعد كل قمة", "worlds")
+	selection_surface("إلى أين نذهب؟", "خمسة عوالم… وفي كل عالم ثلاث قمم تنتظرك", "worlds")
 	for world in range(5):
 		var x := 70.0 + world * 230
-		var texture: Texture2D = BACKGROUND if world == 0 else (Stage.WORLD_BG if world < 3 else Stage.EXTRA_BG)
-		var preview := TextureRect.new()
-		preview.position = Vector2(x, 186); preview.size = Vector2(215, 238)
-		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if world == 0: preview.texture = texture
-		else:
-			var atlas := AtlasTexture.new(); atlas.atlas = texture
-			atlas.region = Rect2((world - (1 if world < 3 else 3)) * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height())
-			preview.texture = atlas
-		modal.add_child(preview)
-		label(modal, Worlds.WORLDS[world], Rect2(x, 435, 215, 40), 25)
+		label(modal, Worlds.WORLDS[world], Rect2(x - 2, 180, 219, 51), 29)
+		island(modal, world, Rect2(x - 4, 231, 223, 303))
+		box(modal, Rect2(x + 28, 570, 157, 3), Color("c7b080"), Color.TRANSPARENT, 0)
 		for chapter in range(3):
 			var id := world * 3 + chapter
-			var choice := button(modal, str(chapter + 1), Rect2(x + chapter * 73, 489, 66, 57), func(): level = id; show_lobby(), level == id)
+			var choice := button(modal, str(chapter + 1), Rect2(x + chapter * 75, 547, 60, 54), func(): level = id; show_lobby(), level == id)
+			choice.name = "Stage%d" % id
 			choice.disabled = player_count == 1 and id > unlocked
 			if level == id: choice.grab_focus()
-	button(modal, "رجوع", Rect2(465, 575, 350, 55), show_lobby)
+	button(modal, "رجوع", Rect2(489, 619, 302, 43), show_lobby)
 
 func show_updates() -> void:
 	state = "updates"; clear_modal(); hud.hide()
@@ -1010,3 +1018,7 @@ func show_updates() -> void:
 	var back := button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 58)), show_settings)
 	if updater.busy: back.grab_focus()
 	else: action.grab_focus()
+
+func get_menu_art() -> Texture2D:
+	if menu_art == null: menu_art = load(MENU_ART_PATH)
+	return menu_art
