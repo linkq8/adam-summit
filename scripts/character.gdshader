@@ -17,7 +17,9 @@ void fragment() {
 		c.b = min(c.b, c.g + 0.08);
 		c.r = min(c.r, c.g + 0.35);
 	}
-	bool gold = c.r > 0.42 && c.g > 0.30 && c.b < min(c.r, c.g) * 0.60;
+	// The side-facing cheeks now overlap the bag's vertical band. Require
+	// saturated yellow so backpack selection cannot recolor warm skin.
+	bool gold = c.r > 0.42 && c.g > 0.30 && c.g > c.r * 0.65 && c.b < c.g * 0.35;
 	bool teal = c.g > c.r * 1.5 && c.b > c.r * 1.4;
 	// Bags and straps occupy the torso band; shoes and hair retain their colors.
 	float frame_y = fract(UV.y * 3.0);

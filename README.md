@@ -2,12 +2,12 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.7.5](https://github.com/linkq8/adam-summit/releases/tag/v0.7.5)**
+**[تحميل النسخة التجريبية 0.7.6](https://github.com/linkq8/adam-summit/releases/tag/v0.7.6)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
 - التلفاز: من لاعب إلى أربعة لاعبين، سباق أو تعاون، مع متابعة المراحل والعوالم.
-- اختيار مستقل للملابس والحقائب والقبعات، وقائمة مصوّرة للعوالم.
+- اختيار مستقل للملابس والحقائب، وقائمة مصوّرة للعوالم.
 - القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
 - إعدادات دقة التلفاز: متوازنة 1080p، دقة الشاشة الأصلية، أو اقتصادية 720p.
 
@@ -62,3 +62,5 @@ The 0.7.1 menus use original painterly camp and island artwork, Lalezar Arabic h
 Version 0.7.4 redraws the jump, descent and landing as focused adventure movement. [Details](design/ADVENTURE-074.md).
 
 Version 0.7.5 uses seven compact jump poses plus idle/victory, with feet kept under the body for clearer landings. [Details](design/JUMP-075.md).
+
+Version 0.7.6 restores Adam’s natural likeness across all four outfits, retains the approved seven-phase jump, aligns the sole midpoint when facing either direction, and removes hats. [Art and validation](design/IDENTITY-V8.md).

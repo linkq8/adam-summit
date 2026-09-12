@@ -24,11 +24,9 @@ var level := 0
 var difficulty := 0
 var costume := 0
 var backpack := 0
-var hat := 0
 var cooperative := false
 var preview_outfit := 0
 var preview_pack := 0
-var preview_hat := 0
 var guide_label: Label
 var easy := true
 var low_detail := false
@@ -36,7 +34,6 @@ var tv_native_resolution := false
 var tv_balanced_resolution := true
 var player_outfits := [0, 1, 2, 3]
 var player_packs := [0, 0, 0, 0]
-var player_hats := [0, 0, 0, 0]
 var menu_axis_time := 0.0
 var hud_time := 0.0
 var perf_time := 0.0
@@ -287,19 +284,13 @@ func clear_modal() -> void:
 		modal.remove_child(child)
 		child.queue_free()
 
-func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0, pack_override: int = -1, hat_override: int = -1) -> Sprite2D:
+func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0, pack_override: int = -1) -> Sprite2D:
 	var sprite := Sprite2D.new()
 	Wardrobe.style(sprite, row, pack_override if pack_override >= 0 else (preview_pack if state == "wardrobe" else backpack))
 	Wardrobe.pose(sprite, frame)
 	sprite.position = at + Vector2(0, height / 2)
 	sprite.scale = Vector2.ONE * Wardrobe.scale_for(sprite, height)
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var cap := Node2D.new()
-	cap.position = Wardrobe.cap_position(sprite, frame)
-	cap.scale = Vector2.ONE * Wardrobe.cap_scale(sprite)
-	var selected_hat := hat_override if hat_override >= 0 else (preview_hat if state == "wardrobe" else hat)
-	cap.draw.connect(func(): Wardrobe.draw_cap(cap, selected_hat))
-	sprite.add_child(cap)
 	parent.add_child(sprite)
 	return sprite
 
@@ -509,7 +500,7 @@ func _input(event: InputEvent) -> void:
 					slots[i] = event.device
 					if state == "lobby": show_lobby()
 					elif state == "paused": show_pause()
-					elif state == "players": show_players(i * 4 + 3)
+					elif state == "players": show_players(i * 3 + 2)
 					get_viewport().set_input_as_handled()
 					return
 		if event.button_index == JOY_BUTTON_A and state not in ["racing", "countdown"]:
@@ -635,7 +626,7 @@ func build_finish() -> void:
 			elif absf(t - best) < 0.001: tie = true
 
 	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
-	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, Wardrobe.VICTORY_FRAME, player_packs[winner] if player_count > 1 else backpack, player_hats[winner] if player_count > 1 else hat)
+	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, Wardrobe.VICTORY_FRAME, player_packs[winner] if player_count > 1 else backpack)
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
 	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % model.elapsed
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
@@ -670,14 +661,13 @@ func load_options() -> void:
 	difficulty = clampi(int(data.get("difficulty", 0)), 0, 2)
 	costume = clampi(int(data.get("costume", 0)), 0, 3)
 	backpack = clampi(int(data.get("backpack", 0)), 0, 2)
-	hat = clampi(int(data.get("hat", 0)), 0, 2)
 	cooperative = bool(data.get("cooperative", false))
 	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
 	low_detail = bool(data.get("low_detail", false))
 	tv_native_resolution = bool(data.get("tv_native_resolution", false))
 	tv_balanced_resolution = bool(data.get("tv_balanced_resolution", true))
 	remote_player = clampi(int(data.get("remote_player", -1)), -1, 3)
-	for key in ["player_outfits", "player_packs", "player_hats"]:
+	for key in ["player_outfits", "player_packs"]:
 		var values = data.get(key, [])
 		if values is Array and values.size() in [2, 4]:
 			for i in range(values.size()): get(key)[i] = clampi(int(values[i]), 0, 3 if key == "player_outfits" else 2)
@@ -690,7 +680,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "player_hats": player_hats, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -868,7 +858,6 @@ func show_wardrobe(reset: bool = false) -> void:
 	if reset:
 		preview_outfit = costume
 		preview_pack = backpack
-		preview_hat = hat
 	state = "wardrobe"
 	hud.hide()
 	for view in views: view.hide()
@@ -878,11 +867,11 @@ func show_wardrobe(reset: bool = false) -> void:
 	label(modal, "خزانة آدم", Rect2(r.position + Vector2(10, 14), Vector2(r.size.x - 20, 60)), 34)
 	label(modal, "نجوم إنجازاتك: ★ %d" % reward_stars(), Rect2(r.position + Vector2(10, 78), Vector2(r.size.x - 20, 35)), 22)
 	illustration = portrait(modal, preview_outfit, r.position + Vector2(r.size.x / 2, 215), 190)
-	var choices := [Wardrobe.OUTFITS, Wardrobe.PACKS, Wardrobe.HATS]
-	var costs := [Wardrobe.OUTFIT_COST, Wardrobe.PACK_COST, Wardrobe.HAT_COST]
-	var selected := [preview_outfit, preview_pack, preview_hat]
+	var choices := [Wardrobe.OUTFITS, Wardrobe.PACKS]
+	var costs := [Wardrobe.OUTFIT_COST, Wardrobe.PACK_COST]
+	var selected := [preview_outfit, preview_pack]
 	var allowed := true
-	for category in range(3):
+	for category in range(2):
 		var price: int = costs[category][selected[category]]
 		var open := reward_stars() >= price
 		allowed = allowed and open
@@ -890,11 +879,10 @@ func show_wardrobe(reset: bool = false) -> void:
 			match category:
 				0: preview_outfit = (preview_outfit + 1) % Wardrobe.OUTFITS.size()
 				1: preview_pack = (preview_pack + 1) % Wardrobe.PACKS.size()
-				2: preview_hat = (preview_hat + 1) % Wardrobe.HATS.size()
 			show_wardrobe())
 	var wear := button(modal, "ارتدِ هذه الملابس ✓" if allowed else "اجمع نجومًا لفتح هذه المكافأة", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 58)), func():
-		if reward_stars() < Wardrobe.OUTFIT_COST[preview_outfit] or reward_stars() < Wardrobe.PACK_COST[preview_pack] or reward_stars() < Wardrobe.HAT_COST[preview_hat]: return
-		costume = preview_outfit; backpack = preview_pack; hat = preview_hat
+		if reward_stars() < Wardrobe.OUTFIT_COST[preview_outfit] or reward_stars() < Wardrobe.PACK_COST[preview_pack]: return
+		costume = preview_outfit; backpack = preview_pack
 		save_options(); show_lobby(), true)
 	wear.disabled = not allowed
 	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), show_lobby).grab_focus()
@@ -918,7 +906,7 @@ func show_tv_lobby() -> void:
 	var height := 270.0 if player_count > 2 else 355.0
 	for i in range(player_count):
 		var at := Vector2(360 - (player_count - 1) * spacing / 2 + i * spacing, 496 - (18 if i % 2 == 0 else 0))
-		var avatar := portrait(modal, player_outfits[i] if player_count > 1 else costume, at, height, 0, player_packs[i] if player_count > 1 else backpack, player_hats[i] if player_count > 1 else hat)
+		var avatar := portrait(modal, player_outfits[i] if player_count > 1 else costume, at, height, 0, player_packs[i] if player_count > 1 else backpack)
 	button(modal, "ابدأ المغامرة", Rect2(792, 232, 380, 76), begin_adventure, true).grab_focus()
 	button(modal, "العالم: " + Worlds.WORLDS[level / 3], Rect2(792, 327, 380, 59), show_worlds)
 	button(modal, "اللاعبون والملابس · %d" % player_count, Rect2(792, 402, 380, 59), show_players)
@@ -942,23 +930,18 @@ func show_players(focus_index: int = -1) -> void:
 		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 240, width, 38), 23)
 		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 344), 130)
 		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
-		for child in avatar.get_children(): child.queue_free()
-		var cap := Node2D.new(); cap.position = Wardrobe.cap_position(avatar, 0)
-		cap.scale = Vector2.ONE * Wardrobe.cap_scale(avatar)
-		cap.draw.connect(func(): Wardrobe.draw_cap(cap, player_hats[i]))
-		avatar.add_child(cap)
-		for category in range(3):
-			var names := [Wardrobe.OUTFITS, Wardrobe.PACKS, Wardrobe.HATS]
-			var values := [player_outfits, player_packs, player_hats]
-			var idx := i * 4 + category
-			controls.append(button(modal, names[category][values[category][i]], Rect2(x + 12, 420 + category * 48, width - 24, 43), func():
+		for category in range(2):
+			var names := [Wardrobe.OUTFITS, Wardrobe.PACKS]
+			var values := [player_outfits, player_packs]
+			var idx := i * 3 + category
+			controls.append(button(modal, names[category][values[category][i]], Rect2(x + 12, 436 + category * 58, width - 24, 43), func():
 				values[category][i] = (values[category][i] + 1) % names[category].size()
-				if i == 0: costume = player_outfits[0]; backpack = player_packs[0]; hat = player_hats[0]
+				if i == 0: costume = player_outfits[0]; backpack = player_packs[0]
 				save_options(); show_players(idx)))
 		controls.append(button(modal, "ريموت" if remote_player == i else ("يد متصلة" if slots[i] in Input.get_connected_joypads() else "يد تحكم"), Rect2(x + 12, 568, width - 24, 43), func():
 			remote_player = -1 if remote_player == i else i
 			save_options()
-			show_players(i * 4 + 3)))
+			show_players(i * 3 + 2)))
 	var done := button(modal, "جاهزون… إلى العالم", Rect2(903, 174, 289, 43), show_worlds, true)
 	if focus_index >= 0 and focus_index < controls.size(): controls[focus_index].grab_focus()
 	else: done.grab_focus()

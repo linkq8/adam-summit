@@ -1,0 +1,3 @@
+# Release preference
+
+The user has explicitly authorized publishing finished versions to the existing GitHub repository linkq8/adam-summit automatically, without asking again. After building and validating a requested version, sync reviewed public source and publish the signed Android APK and its SHA256SUMS as a versioned prerelease unless the user requests stable. Preserve immutable existing releases. Never publish the original child photo, Apple provisioning profiles, development-signed IPA files, private signing configuration or build logs. Keep the existing in-game update repository working.

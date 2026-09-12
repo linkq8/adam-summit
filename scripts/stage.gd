@@ -20,15 +20,12 @@ var old_stars := 0
 var rescue_time := 0.0
 var terrain: Array[Sprite2D] = []
 var branches: Array[Sprite2D] = []
-var cap: Node2D
 var styles: Dictionary = {}
 var configured_model: RefCounted
 var offsets: Array[Vector2] = []
 var branch_offsets: Array[Vector2] = []
 var old_frame := -1
 var old_row := -1
-var old_face := 0
-var old_hat := -1
 var old_pack := -1
 
 func _ready() -> void:
@@ -59,9 +56,6 @@ func _ready() -> void:
 	Wardrobe.pose(hero, 0)
 	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, 138)
 	add_child(hero)
-	cap = Node2D.new()
-	cap.draw.connect(func(): Wardrobe.draw_cap(cap, game.player_hats[index] if game.player_count > 1 else game.hat))
-	hero.add_child(cap)
 
 func _process(dt: float) -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
@@ -86,15 +80,9 @@ func _process(dt: float) -> void:
 		Wardrobe.style(hero, row, pack)
 		old_pack = pack
 	if frame != old_frame or row != old_row: Wardrobe.pose(hero, frame)
-	var hat: int = game.player_hats[index] if game.player_count > 1 else game.hat
-	if old_hat != hat or frame != old_frame or old_face != p.face:
-		cap.position = Wardrobe.cap_position(hero, frame)
-		cap.position.x *= p.face
-		cap.scale = Vector2(p.face, 1) * Wardrobe.cap_scale(hero)
-		cap.queue_redraw()
-	old_face = p.face; old_hat = hat; old_frame = frame; old_row = row
+	old_frame = frame; old_row = row
 	hero.position = Vector2(p.p.x, p.p.y - camera)
-	hero.flip_h = p.face < 0
+	Wardrobe.face(hero, p.face)
 	var squash: float = 0 if game.low_detail else p.squash
 	var size := Wardrobe.scale_for(hero, 138)
 	hero.scale = hero.scale.lerp(Vector2(size * (1 + squash * 0.09), size * (1 - squash * 0.1)), 1.0 if game.low_detail else minf(1, dt * 22))

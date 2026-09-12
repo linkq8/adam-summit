@@ -8,7 +8,7 @@ func run() -> void:
 	await process_frame
 	game.records = {"0": {"stars": 200}}
 	game.show_wardrobe(true)
-	game.preview_outfit = 2; game.preview_pack = 1; game.preview_hat = 1
+	game.preview_outfit = 2; game.preview_pack = 1
 	game.show_wardrobe()
 	await process_frame
 	await RenderingServer.frame_post_draw

@@ -61,3 +61,12 @@ World finales vary the last six jumps and summit silhouette: treehouse, cloud pa
 ## v0.6.1 steering
 
 No automatic lateral landing assistance. Five gate pairs alternate x170/x390 with150/140/128px widths by difficulty, leaving disjoint landing intervals including body allowance. Optional forks reconnect to the updated approaches; controlled main and bonus routes remain reachable. Idle simulations cover all15 stages and3 difficulties.
+
+
+## Approved jump art, atlas v7 (local development)
+
+Four v7 atlases now share the approved compact jump, raised fist above the head and gaze in the direction of travel. Nine cells contain idle, seven jump phases and victory. Per-outfit sole midpoints align both axes, including mirrored facing. Hats have been removed from rendering, wardrobe and TV player selection; legacy save fields are ignored without changing earned progress. See [JUMP-V7.md](design/JUMP-V7.md).
+
+## Natural likeness correction, atlas v8 (local development)
+
+The v7 facial style is superseded by four naturalistic v8 atlases derived directly from the original photo and a corrected full-size identity master. They retain the approved compact jump and overhead fist, with natural eye and facial proportions. See [IDENTITY-V8.md](design/IDENTITY-V8.md) for generation, frame registration and validation.

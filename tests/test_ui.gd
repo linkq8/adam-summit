@@ -117,22 +117,31 @@ func run() -> void:
 	check(game.model.world == 4 and game.model.level == 14, "Fifth world starts")
 	game.show_lobby()
 	game.records = {}
+	var equipped_before_preview: int = game.costume
 	game.show_wardrobe(true)
-	game.preview_outfit = 2; game.preview_pack = 1; game.preview_hat = 1
+	game.preview_outfit = 2; game.preview_pack = 1
 	game.show_wardrobe()
 	var locked := false
 	for child in game.modal.get_children():
 		if child is Button and child.text.begins_with("اجمع نجومًا"): locked = child.disabled
-	check(locked and game.costume == 0, "Locked wardrobe preview does not equip")
+	check(locked and game.costume == equipped_before_preview, "Locked wardrobe preview does not equip")
 	game.records = {"0": {"stars": 200}}
 	game.show_wardrobe()
 	for child in game.modal.get_children():
 		if child is Button and child.text.begins_with("ارتدِ"):
 			child.pressed.emit(); break
-	check(game.costume == 2 and game.backpack == 1 and game.hat == 1, "Earned wardrobe items equip")
-	game.costume = 0; game.backpack = 0; game.hat = 0
+	check(game.costume == 2 and game.backpack == 1, "Earned wardrobe items equip")
+	game.costume = 0; game.backpack = 0
 	game.load_options()
-	check(game.costume == 2 and game.backpack == 1 and game.hat == 1, "Wardrobe persists")
+	check(game.costume == 2 and game.backpack == 1, "Wardrobe persists")
+	var legacy: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(game.storage_path))
+	legacy["hat"] = 2; legacy["player_hats"] = [1, 2, 1, 2]
+	var legacy_file := FileAccess.open(game.storage_path, FileAccess.WRITE)
+	legacy_file.store_string(JSON.stringify(legacy)); legacy_file.close()
+	game.load_options(); game.save_options()
+	var migrated: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(game.storage_path))
+	check(not migrated.has("hat") and not migrated.has("player_hats"), "Obsolete hats disappear on next save")
+	check(game.costume == 2 and game.backpack == 1 and game.records == legacy.records, "Removing hats preserves wardrobe and progress")
 	game.tv = true; game.player_count = 2; game.cooperative = true
 	game.start_race()
 	game.countdown = 0.001; game._physics_process(1.0 / 60)

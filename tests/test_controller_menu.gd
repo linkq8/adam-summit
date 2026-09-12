@@ -22,6 +22,18 @@ func run():
 	var before: int = game.player_outfits[0]
 	await press(JOY_BUTTON_A)
 	check(game.player_outfits[0] == (before + 1) % 4, "Controller changes outfit")
+	for player in range(4):
+		game.show_players(player * 3 + 1); await process_frame
+		var pack: int = game.player_packs[player]
+		await press(JOY_BUTTON_A)
+		check(game.player_packs[player] == (pack + 1) % 3, "Every player's backpack control remains reachable")
+		check(root.gui_get_focus_owner().text == game.Wardrobe.PACKS[game.player_packs[player]], "Focus stays on changed backpack")
+		game.show_players(player * 3 + 2); await process_frame
+		game.remote_player = -1
+		await press(JOY_BUTTON_A)
+		check(game.remote_player == player and root.gui_get_focus_owner().text == "ريموت", "Remote selection keeps focus after hat removal")
+	for child in game.modal.get_children():
+		if child is Button: check(not "قبعة" in child.text, "No hat choices remain")
 	await press(JOY_BUTTON_B)
 	check(game.state == "lobby", "Controller back works")
 	game.stop_audio(); await create_timer(0.2).timeout

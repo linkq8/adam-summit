@@ -3,12 +3,15 @@ const OUTFITS := ["الأزرق", "البرتقالي", "مستكشف الغاب
 const OUTFIT_COST := [0, 0, 45, 120]
 const PACKS := ["الحقيبة الأصلية", "الحقيبة المرجانية", "الحقيبة البنفسجية"]
 const PACK_COST := [0, 60, 150]
-const HATS := ["دون قبعة", "قبعة المستكشف", "قبعة القمة"]
-const HAT_COST := [0, 90, 180]
 const CHARACTER_SHADER = preload("res://scripts/character.gdshader")
-const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v6.png", "res://assets/characters/adam-orange-v6.png", "res://assets/characters/adam-green-v6.png", "res://assets/characters/adam-purple-v6.png"]
-const FEET := [0.975, 0.973, 0.946, 0.878, 0.775, 0.926, 0.944, 0.94, 0.946]
-const HEADS := [Vector2(0.49, 0.14), Vector2(0.49, 0.14), Vector2(0.49, 0.14), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.19), Vector2(0.49, 0.14)]
+const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v8.png", "res://assets/characters/adam-orange-v8.png", "res://assets/characters/adam-green-v8.png", "res://assets/characters/adam-purple-v8.png"]
+# Normalized midpoint of the shoe soles, measured per outfit and frame.
+const FOOT_ANCHORS := [
+	[Vector2(0.52148, 0.98047), Vector2(0.50439, 0.97461), Vector2(0.47119, 0.96484), Vector2(0.47607, 0.95898), Vector2(0.48242, 0.95703), Vector2(0.47705, 0.97266), Vector2(0.50391, 0.92578), Vector2(0.50879, 0.93164), Vector2(0.50342, 0.9707)],
+	[Vector2(0.52295, 0.98047), Vector2(0.50586, 0.97266), Vector2(0.46973, 0.96289), Vector2(0.47754, 0.95898), Vector2(0.48389, 0.95703), Vector2(0.47559, 0.9707), Vector2(0.50684, 0.92578), Vector2(0.50879, 0.93164), Vector2(0.50049, 0.96875)],
+	[Vector2(0.52295, 0.98047), Vector2(0.50439, 0.97461), Vector2(0.4668, 0.96094), Vector2(0.47607, 0.95703), Vector2(0.48242, 0.95508), Vector2(0.47412, 0.9707), Vector2(0.50684, 0.92578), Vector2(0.50732, 0.93164), Vector2(0.50342, 0.9707)],
+	[Vector2(0.52295, 0.98242), Vector2(0.50293, 0.97656), Vector2(0.46826, 0.96484), Vector2(0.47754, 0.96094), Vector2(0.48096, 0.95703), Vector2(0.47412, 0.97266), Vector2(0.50684, 0.92578), Vector2(0.50586, 0.93164), Vector2(0.50049, 0.9707)],
+]
 const BODY_HEIGHT := 0.90
 const VICTORY_FRAME := 8
 static func jump_frame(velocity_y: float, squash: float) -> int:
@@ -21,12 +24,11 @@ static func jump_frame(velocity_y: float, squash: float) -> int:
 	return 6
 static func cell_size(sprite: Sprite2D) -> Vector2:
 	return sprite.texture.get_size() / 3.0
-static func cap_scale(sprite: Sprite2D) -> float:
-	return cell_size(sprite).y / 418.0 * 0.8
 static func style(sprite: Sprite2D, outfit: int, pack: int) -> void:
 	if sprite.material == null or sprite.material.shader != CHARACTER_SHADER:
 		sprite.material = ShaderMaterial.new()
 		sprite.material.shader = CHARACTER_SHADER
+	sprite.set_meta("outfit", clampi(outfit, 0, 3))
 	sprite.texture = load(CHARACTER_PATHS[clampi(outfit, 0, 3)])
 	sprite.material.set_shader_parameter("pack_palette", pack)
 	sprite.material.set_shader_parameter("teal_pack", outfit == 1)
@@ -35,23 +37,24 @@ static func pose(sprite: Sprite2D, frame: int) -> void:
 	sprite.centered = false
 	sprite.region_enabled = true
 	sprite.region_filter_clip_enabled = true
-	sprite.region_rect = Rect2(Vector2(frame % 3, frame / 3) * cell, cell)
-	sprite.offset = Vector2(-cell.x / 2, -FEET[frame] * cell.y)
-static func cap_position(sprite: Sprite2D, frame: int) -> Vector2:
-	var cell := cell_size(sprite)
-	return HEADS[frame] * cell + sprite.offset
+	var rect := Rect2(Vector2(frame % 3, frame / 3) * cell, cell)
+	# Victory's raised fist extends above the nominal last-row boundary.
+	# Share the empty gutter rather than clipping the fist into descent.
+	var gutter := cell.y * (12.0 / 512.0)
+	if frame == 5: rect.size.y -= gutter
+	if frame == VICTORY_FRAME:
+		rect.position.y -= gutter
+		rect.size.y += gutter
+	sprite.region_rect = rect
+	sprite.set_meta("frame", frame)
+	align_feet(sprite)
+static func face(sprite: Sprite2D, direction: int) -> void:
+	if sprite.flip_h == (direction < 0): return
+	sprite.flip_h = direction < 0
+	align_feet(sprite)
+static func align_feet(sprite: Sprite2D) -> void:
+	var anchor: Vector2 = FOOT_ANCHORS[int(sprite.get_meta("outfit", 0))][int(sprite.get_meta("frame", 0))]
+	if sprite.flip_h: anchor.x = 1.0 - anchor.x
+	sprite.offset = -anchor * cell_size(sprite)
 static func scale_for(sprite: Sprite2D, height: float) -> float:
 	return height / (cell_size(sprite).y * BODY_HEIGHT)
-static func draw_cap(canvas: Node2D, hat: int) -> void:
-	if hat == 0: return
-	var tint := Color("2a9390") if hat == 1 else Color("8166b3")
-	var points := PackedVector2Array([Vector2(-64, 4)])
-	for i in range(17):
-		var angle := PI + i * PI / 16
-		points.append(Vector2(cos(angle) * 66, sin(angle) * 48 + 4))
-	points.append(Vector2(64, 4))
-	canvas.draw_colored_polygon(points, tint)
-	canvas.draw_polyline(points, tint.darkened(0.3), 4, true)
-	canvas.draw_colored_polygon(PackedVector2Array([Vector2(-67, 0), Vector2(61, 0), Vector2(94, 17), Vector2(18, 19), Vector2(-68, 9)]), tint.lightened(0.18))
-	canvas.draw_line(Vector2(-3, -42), Vector2(-1, -2), tint.lightened(0.23), 3, true)
-	canvas.draw_circle(Vector2(30, -16), 10, Color("ffdb83"))

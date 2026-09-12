@@ -15,8 +15,12 @@ func run():
 		for frame in range(9):
 			Wardrobe.pose(sprite, frame)
 			check(sprite.region_rect.end.x <= sprite.texture.get_width() + 0.01, "Pose stays inside texture")
-			check(absf(sprite.offset.y + Wardrobe.FEET[frame] * Wardrobe.cell_size(sprite).y) < 0.01, "Feet registered to actor origin")
-			check(Wardrobe.cap_position(sprite, frame).y < -200, "Hat follows head above feet")
+			check((sprite.offset + Wardrobe.FOOT_ANCHORS[outfit][frame] * Wardrobe.cell_size(sprite)).length() < 0.01, "Sole midpoint registered in both axes")
+			Wardrobe.face(sprite, -1)
+			var anchor: Vector2 = Wardrobe.FOOT_ANCHORS[outfit][frame]
+			anchor.x = 1.0 - anchor.x
+			check((sprite.offset + anchor * Wardrobe.cell_size(sprite)).length() < 0.01, "Turning left preserves sole midpoint")
+			Wardrobe.face(sprite, 1)
 			check(sprite.region_filter_clip_enabled, "No neighboring-frame texture bleed")
 		Wardrobe.style(sprite, outfit, 2)
 		check(sprite.material.get_shader_parameter("pack_palette") == 2, "Backpack selection preserved")
