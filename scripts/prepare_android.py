@@ -37,3 +37,29 @@ source = java.read_text()
 if '// Adam device profile' not in source:
     source = source.replace('public class GodotApp extends GodotActivity {', 'public class GodotApp extends GodotActivity {\n    // Adam device profile: TV is identified by Android, never by screen width.\n    private boolean isTelevision() {\n        android.app.UiModeManager mode = (android.app.UiModeManager)getSystemService(UI_MODE_SERVICE);\n        return mode != null && mode.getCurrentModeType() == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION;\n    }\n    @Override public java.util.List<String> getCommandLine() {\n        java.util.List<String> args = new java.util.ArrayList<>(super.getCommandLine());\n        if (isTelevision()) { args.add("--"); args.add("--tv-device"); }\n        return args;\n    }\n')
     java.write_text(source)
+
+# Sideloaded GitHub updates: Android retains the final installation confirmation.
+import shutil
+for permission in ['android.permission.INTERNET', 'android.permission.REQUEST_INSTALL_PACKAGES']:
+    if not any(e.get('{'+android+'}name') == permission for e in document.findall('uses-permission')):
+        ET.SubElement(document, 'uses-permission', {'{'+android+'}name': permission})
+app = document.find('application')
+if not any(e.get('{'+android+'}authorities') == '${applicationId}.updates' for e in app.findall('provider')):
+    provider = ET.SubElement(app, 'provider', {'{'+android+'}name': 'com.godot.game.AdamUpdateProvider', '{'+android+'}authorities': '${applicationId}.updates', '{'+android+'}exported': 'false', '{'+android+'}grantUriPermissions': 'true'})
+    ET.SubElement(provider, 'meta-data', {'{'+android+'}name': 'android.support.FILE_PROVIDER_PATHS', '{'+android+'}resource': '@xml/adam_update_paths'})
+queries = document.find('queries')
+if queries is None: queries = ET.SubElement(document, 'queries')
+if not any(e.find('data') is not None and e.find('data').get('{'+android+'}mimeType') == 'application/vnd.android.package-archive' for e in queries.findall('intent')):
+    intent = ET.SubElement(queries, 'intent')
+    ET.SubElement(intent, 'action', {'{'+android+'}name': 'android.intent.action.VIEW'})
+    ET.SubElement(intent, 'data', {'{'+android+'}mimeType': 'application/vnd.android.package-archive'})
+tree.write(manifest, encoding='utf-8', xml_declaration=True)
+paths = build / 'res/xml/adam_update_paths.xml'
+paths.parent.mkdir(parents=True, exist_ok=True)
+paths.write_text('<paths><files-path name="updates" path="updates/"/></paths>')
+shutil.copy2(root / 'scripts/native/AdamUpdates.java', java.parent / 'AdamUpdates.java')
+
+for provider in app.findall("provider"):
+    if provider.get("{"+android+"}authorities") == "${applicationId}.updates": provider.set("{"+android+"}name", "com.godot.game.AdamUpdateProvider")
+tree.write(manifest, encoding="utf-8", xml_declaration=True)
+shutil.copy2(root / "scripts/native/AdamUpdateProvider.java", java.parent / "AdamUpdateProvider.java")

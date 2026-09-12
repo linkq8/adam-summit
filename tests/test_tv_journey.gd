@@ -11,6 +11,7 @@ func run() -> void:
 	root.add_child(game)
 	game.demo = true
 	game.tv = true
+	game.tv_native_resolution = true
 	game.player_count = 2
 	root.size = Vector2i(3840, 2160)
 	game.layout_ui()

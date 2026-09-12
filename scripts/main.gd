@@ -29,7 +29,15 @@ var preview_hat := 0
 var guide_label: Label
 var easy := true
 var low_detail := false
-var tv_native_resolution := true
+var tv_native_resolution := false
+var tv_balanced_resolution := true
+var player_outfits := [0, 1, 2, 3]
+var player_packs := [0, 0, 0, 0]
+var player_hats := [0, 0, 0, 0]
+var menu_axis_time := 0.0
+var hud_time := 0.0
+var perf_time := 0.0
+var updater: Node
 var sound_on := true
 var music_volume := 0.5
 var effects_volume := 0.7
@@ -38,7 +46,8 @@ var tutorial_seen := false
 var unlocked := 0
 var records: Dictionary = {}
 var saved_game: Dictionary = {}
-var slots := [-1, -1]
+var slots := [-1, -1, -1, -1]
+var remote_player := -1
 var held_keys: Dictionary = {}
 var touch_directions := Vector2.ZERO
 var touch_ids: Dictionary = {}
@@ -78,6 +87,10 @@ var storage_path := "user://journey.json"
 
 func _ready() -> void:
 	Engine.max_fps = 60
+	Input.use_accumulated_input = false
+	updater = preload("res://scripts/updater.gd").new()
+	add_child(updater)
+	updater.changed.connect(func(): if state == "updates": show_updates())
 	var args := OS.get_cmdline_user_args()
 	tv = "--tv" in args or "--tv-device" in args
 	mobile = OS.get_name() in ["Android", "iOS"]
@@ -111,7 +124,7 @@ func _ready() -> void:
 	theme.default_font = FONT
 	theme.default_font_size = 20
 	ui.theme = theme
-	for i in range(2):
+	for i in range(4):
 		var container := Control.new()
 		container.clip_contents = true
 		container.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -140,12 +153,17 @@ func _ready() -> void:
 		if "--level" in args:
 			level = clampi(int(args[args.find("--level") + 1]), 0, Worlds.COUNT - 1)
 		start_race()
+	if OS.has_feature("debug") and FileAccess.file_exists("user://update-install.flag"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://update-install.flag"))
+		updater.install_ready = true
+		updater.install.call_deferred()
 	if "--capture-lobby" in args:
 		capture_lobby.call_deferred()
 
 # Keep gameplay coordinates fixed, but rasterize at the physical display resolution.
 func apply_render_quality() -> void:
 	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if tv and not tv_native_resolution else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	scale = Vector2.ONE * (1.5 if tv and not tv_native_resolution and tv_balanced_resolution else 1.0)
 
 func advance_adventure() -> void:
 	if state != "finish": return
@@ -165,7 +183,7 @@ func layout_ui() -> void:
 	var pixels := Vector2(layout_pixels)
 	var aspect := pixels.x / maxf(pixels.y, 1)
 	canvas_size = Vector2(1280, 720) if tv else Vector2(maxf(540, 800 * aspect), maxf(800, 540 / aspect))
-	get_window().content_scale_size = Vector2i(canvas_size)
+	get_window().content_scale_size = Vector2i(canvas_size * scale.x)
 	ui.size = canvas_size
 	modal.size = canvas_size
 	hud.size = canvas_size
@@ -182,9 +200,9 @@ func layout_ui() -> void:
 	menu_rect = Rect2((canvas_size.x - width) / 2, safe_top + maxf(0, (available - 820) / 2), width, minf(available, 820))
 	var field_top := safe_top + 84
 	var field_bottom := safe_bottom + (18 if tv else 54)
-	for i in range(2):
-		var w := (canvas_size.x - 96) / 2 if tv and player_count == 2 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76)
-		var x := 32 + i * (w + 32) if tv and player_count == 2 else (canvas_size.x - w) / 2
+	for i in range(4):
+		var w := (canvas_size.x - 32 * (player_count + 1)) / player_count if tv and player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76)
+		var x := 32 + i * (w + 32) if tv and player_count > 1 else (canvas_size.x - w) / 2
 		views[i].position = Vector2(x, field_top)
 		views[i].size = Vector2(w, maxf(240, canvas_size.y - field_top - field_bottom))
 		stages[i].scale = Vector2.ONE * w / Model.WIDTH
@@ -197,6 +215,8 @@ func layout_ui() -> void:
 	elif state == "tutorial": show_tutorial()
 	elif state == "worlds": show_worlds()
 	elif state == "wardrobe": show_wardrobe()
+	elif state == "players": show_players()
+	elif state == "updates": show_updates()
 	elif state == "finish": build_finish()
 	elif state == "countdown": build_countdown()
 	queue_redraw()
@@ -279,6 +299,9 @@ func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0
 	return sprite
 
 func show_lobby() -> void:
+	if tv:
+		show_tv_lobby()
+		return
 	state = "lobby"
 	for v in views: v.hide()
 	hud.hide()
@@ -294,7 +317,7 @@ func show_lobby() -> void:
 	var gap := 58.0 if compact else 70.0
 	if tv:
 		button(modal, "لاعب واحد" + (" ✓" if player_count == 1 else ""), Rect2(r.position.x + 18, y, r.size.x / 2 - 24, 46), func(): player_count = 1; layout_ui())
-		button(modal, "لاعبان" + (" ✓" if player_count == 2 else ""), Rect2(r.position.x + r.size.x / 2 + 6, y, r.size.x / 2 - 24, 46), func(): player_count = 2; layout_ui())
+		button(modal, "لاعبان" + (" ✓" if player_count > 1 else ""), Rect2(r.position.x + r.size.x / 2 + 6, y, r.size.x / 2 - 24, 46), func(): player_count = 2; layout_ui())
 		y += gap
 	button(modal, Worlds.title(level) + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), show_worlds)
 	y += gap
@@ -313,7 +336,7 @@ func show_lobby() -> void:
 	button(modal, "الإعدادات", Rect2(r.position.x + 20, y, r.size.x / 2 - 25, 46), func(): settings_return = "lobby"; show_settings())
 	button(modal, "كيف ألعب؟", Rect2(r.position.x + r.size.x / 2 + 5, y, r.size.x / 2 - 25, 46), show_tutorial)
 	if tv:
-		label(modal, "%s\n%s" % [controller_text(0), controller_text(1)] if player_count == 2 else controller_text(0), Rect2(20, canvas_size.y - 130, maxf(180, menu_rect.position.x - 35), 85), 16)
+		label(modal, "%s\n%s" % [controller_text(0), controller_text(1)] if player_count > 1 else controller_text(0), Rect2(20, canvas_size.y - 130, maxf(180, menu_rect.position.x - 35), 85), 16)
 	start.grab_focus()
 	queue_redraw()
 
@@ -321,13 +344,16 @@ func controller_text(i: int) -> String:
 	return "يد %d متّصلة ✓" % (i + 1) if slots[i] in Input.get_connected_joypads() else "الزر السفلي للانضمام"
 
 func begin_adventure() -> void:
+	if remote_player >= player_count: remote_player = 0
 	if tv and mobile:
 		var connected := Input.get_connected_joypads()
 		for i in range(player_count):
+			if i == remote_player: continue
 			if not slots[i] in connected:
 				for id in connected:
 					if not slots.has(id): slots[i] = id; break
 		for i in range(player_count):
+			if i == remote_player: continue
 			if not slots[i] in connected:
 				clear_modal()
 				box(modal, menu_rect, Color("fff9e9"))
@@ -349,7 +375,7 @@ func show_tutorial() -> void:
 	label(modal, "نقفز إلى القمّة!", Rect2(r.position + Vector2(20, 30), Vector2(r.size.x - 40, 60)), 32)
 	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 245), 220, 1)
 	label(modal, "←                    →", Rect2(r.position + Vector2(20, 295), Vector2(r.size.x - 40, 65)), 43, BLUE)
-	label(modal, "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان", Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
+	label(modal, ("القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة" if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
 	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
 	help_time = 0
 	play_sound("help")
@@ -361,14 +387,14 @@ func build_hud() -> void:
 	for i in range(player_count):
 		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
 		box(hud, rect, Color(1, 0.99, 0.95, 0.95), Color("fff7df"), 22)
-		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(100, 46)), 24, Color("a06a20")))
-		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(106, 7), Vector2(180 if player_count == 2 else maxf(90, rect.size.x - 165), 46)), 18))
-		if player_count == 2:
-			label(hud, "آدم الأزرق" if i == 0 else "آدم البرتقالي", Rect2(rect.end.x - 246, rect.position.y + 8, 190, 46), 21, BLUE if i == 0 else ORANGE)
+		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(78, 46)), 20, Color("a06a20")))
+		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(85, 7), Vector2(maxf(90, rect.size.x - 95), 46)), 16))
+		if player_count > 1:
+			label(hud, "اللاعب %d" % (i + 1), Rect2(rect.position.x, rect.position.y + 64, rect.size.x, 24), 16, [BLUE, ORANGE, Color("267342"), Color("8050a2")][i])
 	var pause_btn := button(hud, "Ⅱ", Rect2(canvas_size.x - 67, safe_top + 5, 51, 55), pause_race)
 	pause_btn.focus_mode = Control.FOCUS_NONE
 	clock_label = label(hud, "", Rect2(canvas_size.x / 2 - 40, safe_top + 64, 80, 30), 16)
-	clock_label.visible = tv and player_count == 2
+	clock_label.visible = tv and player_count > 1
 	perf_label = label(hud, "", Rect2(5, safe_top + 70, canvas_size.x - 10, 30), 12)
 	perf_label.visible = showing_perf
 	if not tv:
@@ -378,10 +404,10 @@ func build_hud() -> void:
 
 func start_race() -> void:
 	if sounds.has("help"): sounds.help.stop()
-	player_count = clampi(player_count, 1, 2) if tv else 1
+	player_count = clampi(player_count, 1, 4) if tv else 1
 	easy = difficulty == 0
 	model = Model.new(easy, player_count, level, difficulty)
-	model.cooperative = tv and player_count == 2 and cooperative
+	model.cooperative = tv and player_count > 1 and cooperative
 	select_music()
 	state = "countdown"
 	countdown = 3
@@ -406,8 +432,10 @@ func _physics_process(dt: float) -> void:
 		count_label.text = str(maxi(n, 1))
 		if countdown <= 0: clear_modal(); state = "racing"; play_sound("go")
 	elif state == "racing":
-		var directions := read_directions()
-		if demo: directions = Vector2(model.autopilot(0), model.autopilot(1) if player_count == 2 else 0)
+		var directions = read_directions()
+		if demo:
+			directions = []
+			for i in range(player_count): directions.append(model.autopilot(i))
 		for event in model.step(dt, directions):
 			match event.kind:
 				"star", "secret":
@@ -425,7 +453,9 @@ func _physics_process(dt: float) -> void:
 		if model.complete(): show_finish()
 		save_timer += dt
 		if save_timer > 5: save_timer = 0; save_journey()
-	if hud.visible:
+	hud_time += dt
+	if hud.visible and hud_time >= 0.1:
+		hud_time = 0.0
 		for i in range(player_count):
 			star_labels[i].text = "★ %d" % model.players[i].stars
 			height_labels[i].text = "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
@@ -441,21 +471,34 @@ func _physics_process(dt: float) -> void:
 			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • المسار الذهبي: نجوم أكثر")
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
 
-func read_directions() -> Vector2:
-	var result := touch_directions
-	if not tv and drag_id != -1:
-		result.x = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
-	result.x += float(held_keys.get(KEY_D, false)) - float(held_keys.get(KEY_A, false))
-	result[1 if player_count == 2 else 0] += float(held_keys.get(KEY_RIGHT, false)) - float(held_keys.get(KEY_LEFT, false))
+func read_directions():
+	var result := [touch_directions.x, touch_directions.y, 0.0, 0.0]
+	if not tv and drag_id != -1: result[0] = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
+	result[0] += float(held_keys.get(KEY_D, false)) - float(held_keys.get(KEY_A, false))
+	var keyboard_player := remote_player if tv and remote_player >= 0 and remote_player < player_count else (1 if player_count > 1 else 0)
+	if not (tv and mobile and remote_player < 0):
+		result[keyboard_player] += float(held_keys.get(KEY_RIGHT, false)) - float(held_keys.get(KEY_LEFT, false))
 	for i in range(player_count):
+		if i == remote_player: continue
 		if slots[i] in Input.get_connected_joypads():
 			var axis := Input.get_joy_axis(slots[i], JOY_AXIS_LEFT_X)
-			if absf(axis) > 0.20: result[i] += signf(axis) * (absf(axis) - 0.20) / 0.80
+			if absf(axis) > 0.16: result[i] += signf(axis) * (absf(axis) - 0.16) / 0.84
 			result[i] += float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_RIGHT)) - float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_LEFT))
-	return result.clamp(Vector2(-1, -1), Vector2.ONE)
+	for i in range(4): result[i] = clampf(result[i], -1, 1)
+	return Vector2(result[0], result[1]) if player_count <= 2 else result
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey: held_keys[event.physical_keycode] = event.pressed
+	if event is InputEventJoypadMotion and state not in ["racing", "countdown"]:
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_B:
+		if state == "paused": resume_race()
+		elif state in ["racing", "countdown"]: pause_race()
+		elif state == "updates": show_settings()
+		else: show_lobby()
+		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey: held_keys[event.physical_keycode if event.physical_keycode != 0 else event.keycode] = event.pressed
 	if not tv and state == "racing":
 		if event is InputEventScreenTouch:
 			if event.pressed and drag_id == -1 and event.position.y > safe_top + 84:
@@ -477,13 +520,20 @@ func _input(event: InputEvent) -> void:
 			move_drag(event.relative.x)
 	if event is InputEventJoypadButton and event.pressed:
 		if not slots.has(event.device) and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_START]:
-			for i in range(2 if tv else 1):
+			for i in range(4 if tv else 1):
+				if i == remote_player: continue
 				if not slots[i] in Input.get_connected_joypads():
 					slots[i] = event.device
 					if state == "lobby": show_lobby()
 					elif state == "paused": show_pause()
+					elif state == "players": show_players(i * 4 + 3)
 					get_viewport().set_input_as_handled()
 					return
+		if event.button_index == JOY_BUTTON_A and state not in ["racing", "countdown"]:
+			var focused := get_viewport().gui_get_focus_owner()
+			if focused is Button and not focused.disabled: focused.pressed.emit()
+			get_viewport().set_input_as_handled()
+			return
 		if event.button_index == JOY_BUTTON_START:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
@@ -493,7 +543,8 @@ func _input(event: InputEvent) -> void:
 		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
-			elif state in ["settings", "tutorial"]: show_lobby()
+			elif state == "updates": show_settings()
+			elif state in ["settings", "tutorial", "players", "worlds", "wardrobe", "finish"]: show_lobby()
 			get_viewport().set_input_as_handled()
 		elif event.physical_keycode == KEY_F3:
 			showing_perf = not showing_perf
@@ -522,7 +573,7 @@ func show_pause() -> void:
 	label(modal, "استراحة صغيرة", Rect2(r.position + Vector2(15, 40), Vector2(r.size.x - 30, 65)), 33)
 	portrait(modal, costume, r.position + Vector2(r.size.x / 2, 210), 175)
 	var missing := false
-	for i in range(player_count): missing = missing or (slots[i] >= 0 and not slots[i] in Input.get_connected_joypads())
+	for i in range(player_count): missing = missing or (i != remote_player and slots[i] >= 0 and not slots[i] in Input.get_connected_joypads())
 	label(modal, "وصّل اليد أو اضغط الزر السفلي بيد بديلة" if missing else "رحلتك في انتظارك", Rect2(r.position + Vector2(10, 313), Vector2(r.size.x - 20, 45)), 19)
 	var resume := button(modal, "أكمل  ▶", Rect2(r.position + Vector2(25, 380), Vector2(r.size.x - 50, 64)), resume_race, true)
 	resume.disabled = missing
@@ -532,7 +583,7 @@ func show_pause() -> void:
 
 func resume_race() -> void:
 	for i in range(player_count):
-		if slots[i] >= 0 and not slots[i] in Input.get_connected_joypads(): return
+		if i != remote_player and slots[i] >= 0 and not slots[i] in Input.get_connected_joypads(): return
 	clear_modal()
 	state = resume_state
 	if state == "countdown": build_countdown()
@@ -562,9 +613,14 @@ func show_settings() -> void:
 			apply_audio(); save_options())
 	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 356), Vector2(r.size.x - 40, 60)), func(): low_detail = not low_detail; save_options(); show_settings())
 	if tv:
-		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else "اقتصادية 720p"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): tv_native_resolution = not tv_native_resolution; apply_render_quality(); save_options(); show_settings())
+		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p")), Rect2(r.position + Vector2(20, 425), Vector2(r.size.x - 40, 48)), func():
+			if tv_native_resolution: tv_native_resolution = false; tv_balanced_resolution = false
+			elif tv_balanced_resolution: tv_native_resolution = true
+			else: tv_balanced_resolution = true
+			apply_render_quality(); save_options(); layout_ui())
 	if not tv:
 		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): haptics = not haptics; save_options(); show_settings())
+	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
 		else: show_lobby(), true).grab_focus()
@@ -587,15 +643,18 @@ func build_finish() -> void:
 	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
 	var winner := 0
 	var tie := false
-	if player_count == 2:
-		var a: float = model.players[0].finish
-		var b: float = model.players[1].finish
-		tie = a >= 0 and b >= 0 and absf(a - b) < 0.001
-		winner = 0 if a >= 0 and (b < 0 or a <= b) else 1
+	if player_count > 1:
+		var best := INF
+		for i in range(player_count):
+			var t: float = model.players[i].finish
+			if t < 0: continue
+			if t < best - 0.001: best = t; winner = i; tie = false
+			elif absf(t - best) < 0.001: tie = true
+
 	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
-	illustration = portrait(modal, winner if player_count == 2 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 1)
+	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 1)
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
-	if player_count == 2: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else ("فاز آدم الأزرق" if winner == 0 else "فاز آدم البرتقالي"))) + "\n%.2f ثانية" % model.elapsed
+	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % model.elapsed
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
 	var title := "المرحلة التالية  ▶"
 	if level % 3 == 2: title = "العالم التالي  ▶"
@@ -632,7 +691,13 @@ func load_options() -> void:
 	cooperative = bool(data.get("cooperative", false))
 	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
 	low_detail = bool(data.get("low_detail", false))
-	tv_native_resolution = bool(data.get("tv_native_resolution", true))
+	tv_native_resolution = bool(data.get("tv_native_resolution", false))
+	tv_balanced_resolution = bool(data.get("tv_balanced_resolution", true))
+	remote_player = clampi(int(data.get("remote_player", -1)), -1, 3)
+	for key in ["player_outfits", "player_packs", "player_hats"]:
+		var values = data.get(key, [])
+		if values is Array and values.size() in [2, 4]:
+			for i in range(values.size()): get(key)[i] = clampi(int(values[i]), 0, 3 if key == "player_outfits" else 2)
 	music_volume = clampf(float(data.get("music", 0.5)), 0, 1)
 	effects_volume = clampf(float(data.get("effects", 0.7)), 0, 1)
 	haptics = bool(data.get("haptics", true))
@@ -642,7 +707,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "player_hats": player_hats, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -691,10 +756,23 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		if state in ["racing", "countdown"]: pause_race()
 		elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
+		elif state == "updates": show_settings()
 		elif state != "lobby": show_lobby()
 		else: get_tree().quit()
 
 func _process(dt: float) -> void:
+	menu_axis_time = maxf(0, menu_axis_time - dt)
+	if state not in ["racing", "countdown"] and menu_axis_time <= 0:
+		for device in Input.get_connected_joypads():
+			var axis := Vector2(Input.get_joy_axis(device, JOY_AXIS_LEFT_X), Input.get_joy_axis(device, JOY_AXIS_LEFT_Y))
+			if axis.length() > 0.55:
+				var action := ("ui_right" if axis.x > 0 else "ui_left") if absf(axis.x) > absf(axis.y) else ("ui_down" if axis.y > 0 else "ui_up")
+				var nav := InputEventAction.new(); nav.action = action; nav.pressed = true
+				Input.parse_input_event(nav)
+				var release := InputEventAction.new(); release.action = action; release.pressed = false
+				Input.parse_input_event(release)
+				menu_axis_time = 0.22
+				break
 	# Fixed-resolution TV viewports do not always signal a physical rotation.
 	if get_window().size != layout_pixels: schedule_layout()
 	total_time += dt
@@ -702,9 +780,12 @@ func _process(dt: float) -> void:
 		help_time += dt
 		illustration.rotation = sin(help_time * 2) * 0.025
 		if state == "tutorial": illustration.position = menu_rect.position + Vector2(menu_rect.size.x / 2 + sin(help_time * 1.8) * 70, 230 - absf(sin(help_time * 2.4)) * 45)
-	frame_times.append(dt * 1000)
-	if frame_times.size() > 300: frame_times.pop_front()
-	if is_instance_valid(perf_label):
+	if showing_perf or smoke:
+		frame_times.append(dt * 1000)
+		if frame_times.size() > 180: frame_times.pop_front()
+	perf_time += dt
+	if (showing_perf or smoke) and perf_time >= 0.5 and is_instance_valid(perf_label):
+		perf_time = 0.0
 		var sorted := frame_times.duplicate()
 		sorted.sort()
 		perf_label.text = "%d FPS • p95 %.1f ms • %.0f MB" % [Engine.get_frames_per_second(), sorted[int((sorted.size() - 1) * 0.95)], OS.get_static_memory_usage() / 1048576.0]
@@ -746,6 +827,9 @@ func move_drag(dx: float) -> void:
 	drag_target = clampf(drag_target + dx * Model.WIDTH / maxf(1, views[0].size.x), 24, Model.WIDTH - 24)
 
 func show_worlds() -> void:
+	if tv:
+		show_tv_worlds()
+		return
 	hud.hide()
 	for view in views: view.hide()
 	state = "worlds"
@@ -820,3 +904,109 @@ func show_wardrobe(reset: bool = false) -> void:
 		save_options(); show_lobby(), true)
 	wear.disabled = not allowed
 	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), show_lobby).grab_focus()
+
+func selection_surface(title: String, subtitle: String, next_state: String) -> void:
+	state = next_state
+	clear_modal(); hud.hide()
+	for view in views: view.hide()
+	box(modal, Rect2(40, 24, 1200, 672), Color("fff9e9"), Color.TRANSPARENT, 28)
+	label(modal, title, Rect2(80, 42, 1120, 64), 40)
+	label(modal, subtitle, Rect2(80, 111, 1120, 40), 21, BLUE)
+	label(modal, "العصا أو الأسهم للتنقّل    •    الزر السفلي للاختيار    •    الزر الأيمن للرجوع", Rect2(70, 646, 1140, 32), 18)
+
+func show_tv_lobby() -> void:
+	selection_surface("مغامرات آدم", "اختر رفيقك وعالمك… وانطلق إلى القمّة", "lobby")
+	for i in range(player_count):
+		var columns := mini(player_count, 2)
+		var w := 585.0 / columns - 12
+		var x := 105 + (i % columns) * (w + 12)
+		var h := 163.0 if player_count > 2 else 340.0
+		var y := 180 + (i / columns) * (h + 14)
+		box(modal, Rect2(x, y, w, h), [Color("e3eee3"), Color("f9e6d4"), Color("e6f0cf"), Color("eee2f4")][i], Color.TRANSPARENT, 20)
+		portrait(modal, player_outfits[i], Vector2(x + w / 2, y + h * 0.44), h * 0.70)
+		label(modal, "اللاعب %d" % (i + 1), Rect2(x, y + h - 42, w, 36), 23)
+	button(modal, "اختيار اللاعبين والملابس", Rect2(105, 541, 585, 58), show_players)
+	var x := 745.0
+	button(modal, "عدد اللاعبين: %d" % player_count, Rect2(x, 180, 430, 55), func(): player_count = player_count % 4 + 1; show_tv_lobby())
+	button(modal, Worlds.title(level), Rect2(x, 251, 430, 55), show_worlds)
+	button(modal, DIFFICULTIES[difficulty], Rect2(x, 322, 430, 55), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())
+	button(modal, "تعاون" if cooperative else "سباق إلى القمة", Rect2(x, 393, 430, 55), func(): cooperative = not cooperative; save_options(); show_tv_lobby())
+	button(modal, "ابدأ المغامرة", Rect2(x, 470, 430, 64), begin_adventure, true).grab_focus()
+	button(modal, "الإعدادات والتحديث", Rect2(x, 550, 430, 49), func(): settings_return = "lobby"; show_settings())
+	queue_redraw()
+
+func show_players(focus_index: int = -1) -> void:
+	selection_surface("اختيار اللاعبين", "اختر الملابس • يمكن تخصيص الريموت للاعب واحد", "players")
+	var controls: Array[Button] = []
+	for i in range(player_count):
+		var width := minf(400, 1120.0 / player_count - 16)
+		var x := (1280 - (width + 16) * player_count + 16) / 2 + i * (width + 16)
+		box(modal, Rect2(x, 164, width, 409), [Color("e3eee3"), Color("f9e6d4"), Color("e6f0cf"), Color("eee2f4")][i], Color.TRANSPARENT, 20)
+		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 175, width, 35), 23)
+		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 294), 159)
+		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
+		for child in avatar.get_children(): child.queue_free()
+		var cap := Node2D.new(); cap.position = Wardrobe.HEADS[0] - Vector2(SHEET.get_width() / 8.0, SHEET.get_height() / 4.0)
+		cap.draw.connect(func(): Wardrobe.draw_cap(cap, player_hats[i]))
+		avatar.add_child(cap)
+		for category in range(3):
+			var names := [Wardrobe.OUTFITS, Wardrobe.PACKS, Wardrobe.HATS]
+			var values := [player_outfits, player_packs, player_hats]
+			var idx := i * 4 + category
+			controls.append(button(modal, names[category][values[category][i]], Rect2(x + 12, 379 + category * 46, width - 24, 39), func():
+				values[category][i] = (values[category][i] + 1) % names[category].size()
+				if i == 0: costume = player_outfits[0]; backpack = player_packs[0]; hat = player_hats[0]
+				save_options(); show_players(idx)))
+		controls.append(button(modal, "ريموت" if remote_player == i else ("يد متصلة" if slots[i] in Input.get_connected_joypads() else "يد تحكم"), Rect2(x + 12, 520, width - 24, 40), func():
+			remote_player = -1 if remote_player == i else i
+			save_options()
+			show_players(i * 4 + 3)))
+	var done := button(modal, "جاهزون — اختيار العالم", Rect2(405, 589, 470, 50), show_worlds, true)
+	if focus_index >= 0 and focus_index < controls.size(): controls[focus_index].grab_focus()
+	else: done.grab_focus()
+
+func show_tv_worlds() -> void:
+	selection_surface("اختر العالم", "ثلاث مراحل في كل عالم • تابع الرحلة بعد كل قمة", "worlds")
+	for world in range(5):
+		var x := 70.0 + world * 230
+		var texture: Texture2D = BACKGROUND if world == 0 else (Stage.WORLD_BG if world < 3 else Stage.EXTRA_BG)
+		var preview := TextureRect.new()
+		preview.position = Vector2(x, 186); preview.size = Vector2(215, 238)
+		preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if world == 0: preview.texture = texture
+		else:
+			var atlas := AtlasTexture.new(); atlas.atlas = texture
+			atlas.region = Rect2((world - (1 if world < 3 else 3)) * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height())
+			preview.texture = atlas
+		modal.add_child(preview)
+		label(modal, Worlds.WORLDS[world], Rect2(x, 435, 215, 40), 25)
+		for chapter in range(3):
+			var id := world * 3 + chapter
+			var choice := button(modal, str(chapter + 1), Rect2(x + chapter * 73, 489, 66, 57), func(): level = id; show_lobby(), level == id)
+			choice.disabled = player_count == 1 and id > unlocked
+			if level == id: choice.grab_focus()
+	button(modal, "رجوع", Rect2(465, 575, 350, 55), show_lobby)
+
+func show_updates() -> void:
+	state = "updates"; clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color.TRANSPARENT, 24)
+	label(modal, "تحديث اللعبة", Rect2(r.position + Vector2(20, 30), Vector2(r.size.x - 40, 65)), 34)
+	label(modal, "الإصدار الحالي " + updater.VERSION, Rect2(r.position + Vector2(20, 110), Vector2(r.size.x - 40, 45)), 22)
+	var message := label(modal, updater.status, Rect2(r.position + Vector2(30, 180), Vector2(r.size.x - 60, 140)), 23)
+	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var action := button(modal, "جارٍ العمل…" if updater.busy else ("تثبيت التحديث" if updater.install_ready else ("تنزيل التحديث" if not updater.asset.is_empty() else "تحقق من التحديثات")), Rect2(r.position + Vector2(25, 350), Vector2(r.size.x - 50, 64)), func():
+		if updater.install_ready: updater.install()
+		elif not updater.asset.is_empty():
+			if OS.get_name() == "Android": updater.download()
+			else: OS.shell_open(updater.RELEASES)
+		else: updater.check_update(), true)
+	action.disabled = updater.busy
+	var note := label(modal, "يتطلب الإنترنت. تثبيت Android يحتاج تأكيد النظام." if OS.get_name() == "Android" else "على هذا الجهاز تفتح التنزيلات في GitHub؛ iPhone يحتاج توزيع Apple.", Rect2(r.position + Vector2(30, 435), Vector2(r.size.x - 60, 88)), 18)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var back := button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 58)), show_settings)
+	if updater.busy: back.grab_focus()
+	else: action.grab_focus()

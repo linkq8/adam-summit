@@ -23,7 +23,7 @@ func run() -> void:
 	root.add_child(game)
 	await process_frame
 	check(game.state == "lobby", "Starts in lobby")
-	check(game.stages.size() == 2, "Two independently rendered race views")
+	check(game.stages.size() == 4, "Two independently rendered race views")
 	game.tv = true
 	game.player_count = 2
 	game.start_race()

@@ -54,11 +54,11 @@ func _ready() -> void:
 	hero.scale = Vector2(0.21, 0.21)
 	add_child(hero)
 	cap = Node2D.new()
-	cap.draw.connect(func(): Wardrobe.draw_cap(cap, game.hat))
+	cap.draw.connect(func(): Wardrobe.draw_cap(cap, game.player_hats[index] if game.player_count > 1 else game.hat))
 	hero.add_child(cap)
 
 func _process(dt: float) -> void:
-	if game == null or game.model == null or index >= game.model.players.size():
+	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
 		return
 	var p: Dictionary = game.model.players[index]
 	for i in range(terrain.size()):
@@ -97,9 +97,12 @@ func _process(dt: float) -> void:
 	if game.state in ["countdown", "paused"]: frame = 0
 	if game.state == "finish": frame = 1
 	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
-	var row: int = index if game.player_count == 2 else game.costume
+	var row: int = game.player_outfits[index] if game.player_count > 1 else game.costume
 	hero.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
-	Wardrobe.style(hero, row, game.backpack)
+	if hero.get_meta("outfit", -1) != row or hero.get_meta("pack", -1) != (game.player_packs[index] if game.player_count > 1 else game.backpack):
+		Wardrobe.style(hero, row, game.player_packs[index] if game.player_count > 1 else game.backpack)
+		hero.set_meta("outfit", row)
+		hero.set_meta("pack", game.player_packs[index] if game.player_count > 1 else game.backpack)
 	cap.position = Wardrobe.HEADS[frame] - cell / 2
 	cap.queue_redraw()
 	hero.position = Vector2(p.p.x, p.p.y - camera_for(p) - 65)
@@ -168,7 +171,7 @@ func cloud(at: Vector2, s: float, alpha: float) -> void:
 	draw_circle(at + Vector2(45, -3) * s, 18 * s, c)
 
 func _draw() -> void:
-	if game == null or game.model == null or index >= game.model.players.size():
+	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
 		return
 	var model = game.model
 	var player: Dictionary = model.players[index]
@@ -232,7 +235,7 @@ func _draw() -> void:
 		var at: Vector2 = model.power_position(power) - Vector2(0, camera)
 		if at.y < -40 or at.y > view_height + 40: continue
 		draw_power(at, power)
-		draw_string(game.FONT, at + Vector2(-29, -29), ["درع", "مغناطيس", "إنقاذ"][power], HORIZONTAL_ALIGNMENT_CENTER, 58, 13, Color("fff9e7"))
+		draw_string(game.FONT, at + Vector2(-52, -32), ["درع", "مغناطيس", "إنقاذ"][power], HORIZONTAL_ALIGNMENT_CENTER, 104, 25 if game.player_count >= 3 else 16, Color("fff9e7"))
 	var center: Vector2 = player.p - Vector2(0, camera + 50)
 	if player.shield > 0: draw_arc(center, 63, 0, TAU, 48, Color(0.55, 0.9, 1, 0.72), 3, true)
 	if player.bubble: draw_power(center + Vector2(48, 15), 2, 0.55)
@@ -261,7 +264,7 @@ func crumble(at: Vector2, width: float) -> void:
 		debris.append({"pos": at + Vector2((n / 7.0 - 0.5) * width, 9), "vel": Vector2((n - 3.5) * 22, -35 - (n % 3) * 18), "life": 0.55})
 
 func draw_platform_marks() -> void:
-	if game == null or game.model == null or index >= game.model.players.size(): return
+	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size(): return
 	var model = game.model
 	var camera: float = camera_for(model.players[index])
 	for i in range(model.platforms.size()):

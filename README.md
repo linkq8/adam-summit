@@ -1,66 +1,57 @@
 # مغامرات آدم · Adam's Summit
 
-لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم، تجاوز العقبات، واصعد إلى قمة المرحلة.
+لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخ التجريبية — v0.6.2](https://github.com/linkq8/adam-summit/releases/tag/v0.6.2)**
+**[تحميل النسخة التجريبية 0.7.0](https://github.com/linkq8/adam-summit/releases/tag/v0.7.0)**
 
-- خمسة عوالم، ثلاثة مراحل لكل عالم، وثلاثة مستويات صعوبة.
-- الهاتف: لاعب واحد، شاشة عمودية، والتحريك بالسحب بالإصبع.
-- التلفاز: شاشة أفقية، لاعب واحد أو لاعبان، سباق أو تعاون بيد التحكم.
-- منصات بأحجام مختلفة، ومنصات تنكسر بعد قفزة أو قفزتين، ونقاط حفظ ومكافآت وملابس.
-- في هذا الإصدار: مسارات متعرجة ومسافات تتطلب تحريك اللاعب؛ الوقوف في مكان واحد لا يُكمل المرحلة.
+- خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
+- الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
+- التلفاز: من لاعب إلى أربعة لاعبين، سباق أو تعاون، مع متابعة المراحل والعوالم.
+- اختيار مستقل للملابس والحقائب والقبعات، وقائمة مصوّرة للعوالم.
+- القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
+- إعدادات دقة التلفاز: متوازنة 1080p، دقة الشاشة الأصلية، أو اقتصادية 720p.
 
-## صور اللعبة
+![اختيار اللاعبين](docs/players-tv-07.png)
+![العوالم](docs/worlds-tv-07.png)
+![أربعة لاعبين](docs/four-tv-07.png)
 
-<img src="docs/gameplay-phone.png" alt="اللعب على الهاتف" width="280">
+## التحديث من داخل اللعبة
 
-![اللعب على التلفاز](docs/gameplay-tv.png)
+ثبّت الإصدار 0.7.0 يدويًا مرة واحدة، ثم اختر **الإعدادات ← تحديث اللعبة عبر GitHub** للتحديثات التالية.
 
-## Downloads
+على Android، تتحقق اللعبة من إصدارات المستودع العامة (بما فيها النسخ التجريبية)، وتنزّل APK عند اختيارك، وتتحقق من بصمة SHA-256، ثم تفتح مثبّت Android. قد يطلب النظام السماح للتطبيق بتثبيت التحديثات. يلزم الاحتفاظ بمفتاح توقيع Android نفسه في الإصدارات اللاحقة.
 
-Download the Android APK, macOS ZIP, and unsigned iOS IPA from [Releases](https://github.com/linkq8/adam-summit/releases). SHA-256 checksums are provided with each release.
+على macOS تُفتح صفحة التنزيل. ملف iOS العام غير موقّع ويحتاج توقيع Apple قبل التثبيت؛ لا يوجد تثبيت مباشر لتحديثات GitHub على iPhone أو توزيع TestFlight في هذا المشروع.
 
-These are development builds. The public iOS IPA has its development provisioning profile and signatures removed: it requires your own Apple signing/provisioning before installation. It is not an App Store or TestFlight distribution. The macOS build is not notarized.
+اللعبة محلية دون حسابات أو إعلانات أو تحليلات. يُستخدم الإنترنت فقط عندما تطلب التحقق من التحديثات أو تنزيلها.
 
-Android uses the Godot OpenGL compatibility renderer and requires OpenGL ES 3.0 support. Older GLES2-only TV sticks, including the original Full HD Mi TV Stick, are not supported. Performance on physical Android TV devices, Shield, newer Xiaomi sticks, foldables and controllers still needs hardware testing. Xbox, PlayStation and Nintendo controller operation depends on pairing and the host OS mappings; support across every controller model has not been verified.
+## Build from source
 
-## Run from source
-
-Open `project.godot` in Godot 4.7.2 with matching export templates, then run the main scene. The game runs locally; it has no accounts, ads, photo uploads or network gameplay.
+Use Godot 4.7.2 and matching export templates. Open `project.godot`, then run the main scene. Desktop TV preview:
 
 ```sh
-godot --path .
 godot --path . -- --tv
 ```
 
-### Export
+For Android, install the Android build template and SDK/JDK, then run `python3 scripts/prepare_android.py` before exporting. The script includes TV detection and the native APK installer/FileProvider bridge. Configure local signing keys in Godot; none are included here. Export macOS using its preset. For iOS, set your own Apple team, export the Xcode project and sign using your own provisioning. The macOS build is not notarized.
 
-- **Android:** install Godot's Android build template and the Android SDK/JDK, run `python3 scripts/prepare_android.py`, configure local SDK paths in Godot, then export the Android preset. Signing keys are intentionally not included.
-- **macOS:** export the macOS preset with matching templates; distribution outside development requires your own signing/notarization.
-- **iOS:** set your own Apple team in the iOS export preset, export the Xcode project, and configure signing in Xcode for your devices. No Apple team, certificates or provisioning profiles are included in the source.
+## Validation and device limits
 
-### Regression checks
+Simulation, feature, UI, controller-menu and four-player progression tests passed. Live GitHub metadata retrieval and APK download/hash verification passed. The native Android installer opened and completed an update on an emulator. A desktop four-player 1080p sample measured 58 FPS with 22.2ms p95 frame time; this is not a Shield or Xiaomi hardware measurement.
 
-After importing the project, run:
+Android requires OpenGL ES 3.0. The original GLES2-only Full HD Mi TV Stick is unsupported. Newer Xiaomi sticks, Shield, individual Xbox/PlayStation/Nintendo controller models, foldables and physical 4K TV performance still require hardware validation. Android may expose a lower-resolution app surface than the television's panel resolution.
 
 ```sh
 godot --headless --editor --path . --import
 godot --headless --path . --script tests/test_race.gd
 godot --headless --path . --script tests/test_features.gd
-godot --headless --path . --script tests/test_ui.gd
-godot --headless --path . --script tests/test_spacing.gd
+godot --headless --path . --script tests/test_ui.gd -- --test
+godot --headless --path . --script tests/test_controller_menu.gd -- --test
+godot --headless --path . --script tests/test_four_updates.gd -- --test
 ```
 
-Coverage includes all 45 stage/difficulty combinations, optional routes, platform durability, saving, controls and stationary-player progression. The spacing checks include five simulated minutes without input for each combination.
+`tests/test_update_download.gd` additionally downloads an APK from GitHub to verify the complete download/hash path. Test scripts using `--test` use separate save storage. See [TV design and validation notes](docs/TV-070.md).
 
-## Assets
+## Design and assets
 
-The repository contains the cartoon game character and production artwork. The original reference photograph and personal development files are excluded. The bundled font license is in `assets/FONT-LICENSE.txt`.
-
-## v0.6.2 — TV clarity and continuous worlds
-
-TV now rasterizes at the display surface resolution instead of enlarging a 720p image. Settings include a 720p economy option for slower devices. Texture mipmaps reduce shimmering. Actual resolution depends on the surface exposed by Android and the device output settings; this update does not replace the original artwork with new 4K textures.
-
-Both racing and cooperative modes can continue through all three stages of a world, then the next world, retaining both players. After the final world, a new journey starts at world one. Results wait for confirmation before starting the next countdown.
-
-Validated: UI regression checks and a 30-stage transition test (15 stages in each multiplayer mode), plus a native desktop render at 3740 × 2104. Physical 4K Android TV performance is not yet measured. Android and macOS downloads are updated; the previous iOS build remains in v0.6.1.
+The TV profile selection takes inspiration from [Netflix's profile cards on Mobbin](https://mobbin.com/screens/9b0cfc61-f627-4691-b3a8-b4ea35110aad), adapted to the game's Arabic interface and original cartoon artwork. The original reference photograph, personal files and signing profiles are excluded. Font licensing is in `assets/FONT-LICENSE.txt`.

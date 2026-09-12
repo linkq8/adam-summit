@@ -23,7 +23,7 @@ var cooperative := false
 
 func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: int = -1) -> void:
 	easy = assisted
-	player_count = clampi(count, 1, 2)
+	player_count = clampi(count, 1, 4)
 	level = clampi(chapter, 0, Worlds.COUNT - 1)
 	world = level / 3
 	difficulty = (0 if assisted else 1) if challenge < 0 else clampi(challenge, 0, 2)
@@ -125,7 +125,7 @@ func platform_x(i: int, at_time: float = -1.0) -> float:
 func enemy_x(i: int) -> float:
 	return platform_x(i) + sin(elapsed * 1.6 + i) * 46.0
 
-func step(dt: float, directions: Vector2) -> Array[Dictionary]:
+func step(dt: float, directions) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
 	elapsed += dt
 	for index in range(player_count):
@@ -170,9 +170,10 @@ func step(dt: float, directions: Vector2) -> Array[Dictionary]:
 						p.highest = maxi(p.highest, j)
 						if on_main and plat.checkpoint and j > p.checkpoint:
 							p.checkpoint = j
-							if cooperative and player_count == 2:
-								players[1 - index].checkpoint = maxi(players[1 - index].checkpoint, j)
-								players[1 - index].shield = maxf(players[1 - index].shield, 5)
+							if cooperative:
+								for friend in players:
+									friend.checkpoint = maxi(friend.checkpoint, j)
+									friend.shield = maxf(friend.shield, 5)
 							events.append({"kind": "checkpoint", "player": index})
 						if j == STEPS:
 							p.finish = elapsed - dt + fraction * dt
@@ -210,7 +211,8 @@ func step(dt: float, directions: Vector2) -> Array[Dictionary]:
 			if not p.powers_taken.has(power) and (p.p - Vector2(0, 36)).distance_to(power_position(power)) < 35:
 				p.powers_taken[power] = true
 				grant_power(index, power)
-				if cooperative and player_count == 2: grant_power(1 - index, power)
+				if cooperative:
+					for friend in range(player_count): grant_power(friend, power)
 				events.append({"kind": "power", "player": index, "position": power_position(power)})
 		for secret_id in range(3):
 			var pos := secret_position(secret_id)
@@ -239,8 +241,10 @@ func grant_power(index: int, power: int) -> void:
 		2: players[index].bubble = true
 
 func complete() -> bool:
-	if cooperative and player_count == 2:
-		return players[0].finish >= 0 and players[1].finish >= 0
+	if cooperative:
+		for p in players:
+			if p.finish < 0: return false
+		return true
 	for p in players:
 		if p.finish >= 0: return true
 	return false
