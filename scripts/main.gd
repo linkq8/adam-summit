@@ -9,8 +9,6 @@ var world_art: Texture2D
 const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
 var menu_art: Texture2D
 const BACKGROUND = preload("res://assets/garden-v2.png")
-const SHEET = preload("res://assets/adam-motion.png")
-const KEY = preload("res://scripts/chroma.gdshader")
 const BLUE := Color("167a95")
 const ORANGE := Color("cc6542")
 const INK := Color("173f3e")
@@ -291,17 +289,13 @@ func clear_modal() -> void:
 
 func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0, pack_override: int = -1, hat_override: int = -1) -> Sprite2D:
 	var sprite := Sprite2D.new()
-	sprite.texture = SHEET
-	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
-	sprite.region_enabled = true
-	sprite.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
-	sprite.position = at
-	sprite.scale = Vector2.ONE * height / cell.y
-	sprite.material = ShaderMaterial.new()
-	sprite.material.shader = KEY
 	Wardrobe.style(sprite, row, pack_override if pack_override >= 0 else (preview_pack if state == "wardrobe" else backpack))
+	Wardrobe.pose(sprite, frame)
+	sprite.position = at + Vector2(0, height / 2)
+	sprite.scale = Vector2.ONE * Wardrobe.scale_for(sprite, height)
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var cap := Node2D.new()
-	cap.position = Wardrobe.HEADS[frame] - cell / 2
+	cap.position = Wardrobe.cap_position(sprite, frame)
 	var selected_hat := hat_override if hat_override >= 0 else (preview_hat if state == "wardrobe" else hat)
 	cap.draw.connect(func(): Wardrobe.draw_cap(cap, selected_hat))
 	sprite.add_child(cap)
@@ -640,7 +634,7 @@ func build_finish() -> void:
 			elif absf(t - best) < 0.001: tie = true
 
 	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
-	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 1)
+	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 4, player_packs[winner] if player_count > 1 else backpack, player_hats[winner] if player_count > 1 else hat)
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
 	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % model.elapsed
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
@@ -948,7 +942,7 @@ func show_players(focus_index: int = -1) -> void:
 		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 344), 130)
 		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
 		for child in avatar.get_children(): child.queue_free()
-		var cap := Node2D.new(); cap.position = Wardrobe.HEADS[0] - Vector2(SHEET.get_width() / 8.0, SHEET.get_height() / 4.0)
+		var cap := Node2D.new(); cap.position = Wardrobe.cap_position(avatar, 0)
 		cap.draw.connect(func(): Wardrobe.draw_cap(cap, player_hats[i]))
 		avatar.add_child(cap)
 		for category in range(3):

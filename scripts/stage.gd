@@ -2,7 +2,6 @@ extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const ICONS = preload("res://assets/ui/game-icons.svg")
 const Model = preload("res://scripts/race_model.gd")
-const SHEET = preload("res://assets/adam-motion.png")
 const KEY = preload("res://scripts/chroma.gdshader")
 const PLATFORM = preload("res://assets/platform-v2.png")
 const BACKGROUND = preload("res://assets/garden-v2.png")
@@ -55,11 +54,9 @@ func _ready() -> void:
 	add_child(marks)
 	hero = Sprite2D.new()
 	hero.z_index = 2
-	hero.texture = SHEET
-	hero.region_enabled = true
-	hero.material = ShaderMaterial.new()
-	hero.material.shader = KEY
-	hero.scale = Vector2(0.21, 0.21)
+	Wardrobe.style(hero, 0, 0)
+	Wardrobe.pose(hero, 0)
+	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, 138)
 	add_child(hero)
 	cap = Node2D.new()
 	cap.draw.connect(func(): Wardrobe.draw_cap(cap, game.player_hats[index] if game.player_count > 1 else game.hat))
@@ -82,23 +79,22 @@ func _process(dt: float) -> void:
 	var frame := 1 if p.v.y < -80 else 2
 	if p.squash > 0.68: frame = 3
 	if game.state in ["countdown", "paused"]: frame = 0
-	if game.state == "finish": frame = 1
-	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
+	if game.state == "finish": frame = 4
 	var row: int = game.player_outfits[index] if game.player_count > 1 else game.costume
-	if frame != old_frame or row != old_row: hero.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
 	var pack: int = game.player_packs[index] if game.player_count > 1 else game.backpack
 	if row != old_row or pack != old_pack:
 		Wardrobe.style(hero, row, pack)
 		old_pack = pack
+	if frame != old_frame or row != old_row: Wardrobe.pose(hero, frame)
 	var hat: int = game.player_hats[index] if game.player_count > 1 else game.hat
 	if old_hat != hat or frame != old_frame:
-		cap.position = Wardrobe.HEADS[frame] - cell / 2
+		cap.position = Wardrobe.cap_position(hero, frame)
 		cap.queue_redraw()
 	old_hat = hat; old_frame = frame; old_row = row
-	hero.position = Vector2(p.p.x, p.p.y - camera_for(p) - 65)
+	hero.position = Vector2(p.p.x, p.p.y - camera)
 	hero.flip_h = p.face < 0
 	var squash: float = 0 if game.low_detail else p.squash
-	var size := 138.0 / cell.y
+	var size := Wardrobe.scale_for(hero, 138)
 	hero.scale = hero.scale.lerp(Vector2(size * (1 + squash * 0.09), size * (1 - squash * 0.1)), 1.0 if game.low_detail else minf(1, dt * 22))
 	hero.rotation = 0 if game.low_detail else lerpf(hero.rotation, clampf(p.v.x / 310.0, -1, 1) * 0.06, minf(1, dt * 10))
 	hero.modulate.a = 0.7 if p.invulnerable > 0 else 1.0

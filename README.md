@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.7.2](https://github.com/linkq8/adam-summit/releases/tag/v0.7.2)**
+**[تحميل النسخة التجريبية 0.7.3](https://github.com/linkq8/adam-summit/releases/tag/v0.7.3)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
@@ -11,9 +11,9 @@
 - القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
 - إعدادات دقة التلفاز: متوازنة 1080p، دقة الشاشة الأصلية، أو اقتصادية 720p.
 
-![القائمة الرئيسية](docs/08-tv-home.png)
+![القائمة الرئيسية](docs/073-tv-home.png)
 ![العوالم](docs/08-tv-worlds.png)
-![اختيار اللاعبين](docs/08-tv-players.png)
+![اختيار اللاعبين](docs/073-tv-players.png)
 ![أربعة لاعبين](docs/four-tv-07.png)
 
 ## التحديث من داخل اللعبة
@@ -54,5 +54,7 @@ godot --headless --path . --script tests/test_four_updates.gd -- --test
 `tests/test_update_download.gd` additionally downloads an APK from GitHub to verify the complete download/hash path. Test scripts using `--test` use separate save storage. See [TV design and validation notes](docs/TV-070.md).
 
 ## Design and assets
+
+Version 0.7.3 adds four newly drawn Adam outfits with five animation poses each, registered feet and hat anchors, and a dedicated character shader. See [character art and validation](design/CHARACTERS-073.md).
 
 The 0.7.1 menus use original painterly camp and island artwork, Lalezar Arabic headings and Vazirmatn body text, informed by [Mobbin references](https://mobbin.com/screens/2656db04-1eb5-4568-9e7d-132256423855). See [design rationale](DESIGN.md) and [generated-art prompts](design/ART-080.md). No gameplay features were added in this refinement. The original reference photograph, personal files and signing profiles are excluded. Font licensing is in `assets/FONT-LICENSE.txt` and `assets/fonts/*OFL.txt`.

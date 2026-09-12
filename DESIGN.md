@@ -1,5 +1,9 @@
 # Adam’s Summit design and implementation
 
+## v0.7.3 character artwork
+
+Current character rendering uses four five-pose atlases under `assets/characters`, replacing the old two-row sheet. See [character implementation and measurements](design/CHARACTERS-073.md). Earlier asset descriptions below are historical.
+
 ## v0.7.1 menu and rendering refinement
 
 The 0.7.1 release refines the existing menu and rendering without adding features or changing physics, rules, routes, or progression. A painterly camp scene places Adam and the adventure landscape opposite a clear Arabic action column on TV. World selection uses five illustrated island dioramas; player selection keeps the existing wardrobe and controller choices. Cream surfaces, dark teal ink (`#173f3e`), honey highlights and coral accents connect the menus to the game world. Phone backgrounds use aspect-preserving cover cropping.

@@ -1,6 +1,6 @@
 extends Node
 signal changed
-const VERSION := "0.7.2"
+const VERSION := "0.7.3"
 const API := "https://api.github.com/repos/linkq8/adam-summit/releases?per_page=20"
 const RELEASES := "https://github.com/linkq8/adam-summit/releases"
 const APK := "user://updates/adam-update.apk"
