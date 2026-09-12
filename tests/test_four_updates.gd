@@ -6,7 +6,7 @@ func check(ok: bool, message: String) -> void:
 	if not ok: failures += 1; printerr("FAIL: " + message)
 func _initialize() -> void: call_deferred("run")
 func run() -> void:
-	check(Update.newer("v0.7.2") and Update.newer("v1.0.0"), "Version comparison")
+	check(Update.newer("v0.7.3") and Update.newer("v1.0.0"), "Version comparison")
 	check(not Update.newer("v" + Update.VERSION) and not Update.newer("v0.6.9") and not Update.newer("oops"), "No downgrade or malformed version")
 	check(not Update.valid_asset({"name": "adam-summit-android.apk", "browser_download_url": "https://example.com/evil.apk"}), "Reject foreign URL and missing digest")
 	var game = load("res://main.tscn").instantiate()

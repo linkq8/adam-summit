@@ -327,7 +327,13 @@ func draw_finish(at: Vector2) -> void:
 			star(at + Vector2((i - 5.5) * 25, -200 + phase * 160), 5, Color("ffda86"))
 
 func camera_for(p: Dictionary) -> float:
-	return p.camera - maxf(0, view_height - 600) * 0.65
+	# The simulation camera only moves upward. Following it directly can clip
+	# a still-reachable landing during descent, before the rescue threshold.
+	# Reserve 280 world units below the feet: a full jump (~168 with a
+	# spring), platform artwork, and breathing room. This presentation-only
+	# lower bound follows descent continuously without changing fall rules.
+	var climb_camera: float = p.camera - maxf(0, view_height - 600) * 0.65
+	return maxf(climb_camera, p.p.y + 280.0 - view_height)
 
 func configure_terrain() -> void:
 	configured_model = game.model
