@@ -27,6 +27,7 @@ var offsets: Array[Vector2] = []
 var branch_offsets: Array[Vector2] = []
 var old_frame := -1
 var old_row := -1
+var old_face := 0
 var old_hat := -1
 var old_pack := -1
 
@@ -87,10 +88,12 @@ func _process(dt: float) -> void:
 		old_pack = pack
 	if frame != old_frame or row != old_row: Wardrobe.pose(hero, frame)
 	var hat: int = game.player_hats[index] if game.player_count > 1 else game.hat
-	if old_hat != hat or frame != old_frame:
+	if old_hat != hat or frame != old_frame or old_face != p.face:
 		cap.position = Wardrobe.cap_position(hero, frame)
+		cap.position.x *= p.face
+		cap.scale.x = p.face
 		cap.queue_redraw()
-	old_hat = hat; old_frame = frame; old_row = row
+	old_face = p.face; old_hat = hat; old_frame = frame; old_row = row
 	hero.position = Vector2(p.p.x, p.p.y - camera)
 	hero.flip_h = p.face < 0
 	var squash: float = 0 if game.low_detail else p.squash

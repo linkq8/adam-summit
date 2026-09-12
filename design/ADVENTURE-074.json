@@ -1,0 +1,18 @@
+{
+  "mode": "built-in image_gen",
+  "base": "Edit the provided five-cell game sprite atlas of Adam. Preserve his four-year-old age, recognizable face, hair, detailed cobalt jacket, navy shorts, blue shoes and yellow backpack. Keep standing cell1 and victory cell5 unchanged. REDRAW the action in cells2,3,4 as grounded adventure platforming, not a cute hop: cell2 ASCENT, three-quarter facing RIGHT, torso leaning slightly forward, one knee driving up in front, opposite leg extending down/back, opposite bent arm driving forward and the other back like a natural running leap; relaxed closed hands, focused closed-mouth expression looking toward next ledge. Cell3 DESCENT facing RIGHT, one foot extending down to find landing, other knee slightly bent, arms lowered and angled away from torso for balance with elbows bent, focused gaze downward/right. Cell4 LANDING facing RIGHT, feet planted shoulder-width, knees flexed absorbing impact, torso forward and arms forward for balance. NO both heels tucked behind at once, NO hands raised beside cheeks, NO waving jazz hands, NO beaming open-mouth smile during action. Maintain same head size and child body scale, no adult muscles. Exactly five equal columns, wide 3:1 atlas, all full bodies contained in their own cell with generous magenta gutters, no overlap. Flat uniform solid #FF00FF magenta background without shadows or texture. Polished high-detail illustrated game art.",
+  "variants": [
+    {
+      "name": "orange",
+      "prompt": "Edit reference 1 adventure-jump sprite atlas: preserve EXACT five frames, pose geometry, right-facing direction, focused facial expressions of frames2/3/4, face identity, four-year-old child proportions, head size, positions, gutters and solid flat magenta #FF00FF background. Change ONLY his clothing, backpack and shoes in every frame to match the orange outfit from reference 2. Reference 2 is clothing reference ONLY: DO NOT copy its old cute jumping/waving poses. Keep new athletic one-knee-forward leap, controlled feet-down descent and braced landing from reference1 exactly. Five equal-width columns, no overlap, no cropped limbs, same image dimensions 2172x724 and body scale."
+    },
+    {
+      "name": "green",
+      "prompt": "Edit reference 1 adventure-jump sprite atlas: preserve EXACT five frames, pose geometry, right-facing direction, focused facial expressions of frames2/3/4, face identity, four-year-old child proportions, head size, positions, gutters and solid flat magenta #FF00FF background. Change ONLY his clothing, backpack and shoes in every frame to match the green outfit from reference 2. Reference 2 is clothing reference ONLY: DO NOT copy its old cute jumping/waving poses. Keep new athletic one-knee-forward leap, controlled feet-down descent and braced landing from reference1 exactly. Five equal-width columns, no overlap, no cropped limbs, same image dimensions 2172x724 and body scale."
+    },
+    {
+      "name": "purple",
+      "prompt": "Edit reference 1 adventure-jump sprite atlas: preserve EXACT five frames, pose geometry, right-facing direction, focused facial expressions of frames2/3/4, face identity, four-year-old child proportions, head size, positions, gutters and solid flat magenta #FF00FF background. Change ONLY his clothing, backpack and shoes in every frame to match the purple outfit from reference 2. Reference 2 is clothing reference ONLY: DO NOT copy its old cute jumping/waving poses. Keep new athletic one-knee-forward leap, controlled feet-down descent and braced landing from reference1 exactly. Five equal-width columns, no overlap, no cropped limbs, same image dimensions 2172x724 and body scale."
+    }
+  ]
+}

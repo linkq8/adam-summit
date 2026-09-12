@@ -6,9 +6,9 @@ const PACK_COST := [0, 60, 150]
 const HATS := ["دون قبعة", "قبعة المستكشف", "قبعة القمة"]
 const HAT_COST := [0, 90, 180]
 const CHARACTER_SHADER = preload("res://scripts/character.gdshader")
-const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v4.png", "res://assets/characters/adam-orange-v4.png", "res://assets/characters/adam-green-v4.png", "res://assets/characters/adam-purple-v4.png"]
-const FEET := [0.935, 0.805, 0.885, 0.935, 0.935]
-const HEADS := [Vector2(0.49, 0.20), Vector2(0.51, 0.20), Vector2(0.515, 0.23), Vector2(0.50, 0.405), Vector2(0.52, 0.22)]
+const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v5.png", "res://assets/characters/adam-orange-v5.png", "res://assets/characters/adam-green-v5.png", "res://assets/characters/adam-purple-v5.png"]
+const FEET := [0.935, 0.835, 0.89, 0.935, 0.935]
+const HEADS := [Vector2(0.49, 0.20), Vector2(0.55, 0.20), Vector2(0.55, 0.22), Vector2(0.56, 0.345), Vector2(0.52, 0.22)]
 const BODY_HEIGHT := 0.79
 static func style(sprite: Sprite2D, outfit: int, pack: int) -> void:
 	if sprite.material == null or sprite.material.shader != CHARACTER_SHADER:
