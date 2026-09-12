@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم، تجاوز العقبات، واصعد إلى قمة المرحلة.
 
-**[تحميل النسخ التجريبية — v0.6.1](https://github.com/linkq8/adam-summit/releases/tag/v0.6.1)**
+**[تحميل النسخ التجريبية — v0.6.2](https://github.com/linkq8/adam-summit/releases/tag/v0.6.2)**
 
 - خمسة عوالم، ثلاثة مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهاتف: لاعب واحد، شاشة عمودية، والتحريك بالسحب بالإصبع.
@@ -56,3 +56,11 @@ Coverage includes all 45 stage/difficulty combinations, optional routes, platfor
 ## Assets
 
 The repository contains the cartoon game character and production artwork. The original reference photograph and personal development files are excluded. The bundled font license is in `assets/FONT-LICENSE.txt`.
+
+## v0.6.2 — TV clarity and continuous worlds
+
+TV now rasterizes at the display surface resolution instead of enlarging a 720p image. Settings include a 720p economy option for slower devices. Texture mipmaps reduce shimmering. Actual resolution depends on the surface exposed by Android and the device output settings; this update does not replace the original artwork with new 4K textures.
+
+Both racing and cooperative modes can continue through all three stages of a world, then the next world, retaining both players. After the final world, a new journey starts at world one. Results wait for confirmation before starting the next countdown.
+
+Validated: UI regression checks and a 30-stage transition test (15 stages in each multiplayer mode), plus a native desktop render at 3740 × 2104. Physical 4K Android TV performance is not yet measured. Android and macOS downloads are updated; the previous iOS build remains in v0.6.1.

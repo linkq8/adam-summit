@@ -29,6 +29,7 @@ var preview_hat := 0
 var guide_label: Label
 var easy := true
 var low_detail := false
+var tv_native_resolution := true
 var sound_on := true
 var music_volume := 0.5
 var effects_volume := 0.7
@@ -93,7 +94,7 @@ func _ready() -> void:
 		storage_path = "user://test-journey.json"
 	else:
 		load_options()
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if tv else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	apply_render_quality()
 	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
 	if mobile:
 		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE if tv else DisplayServer.SCREEN_PORTRAIT)
@@ -142,6 +143,15 @@ func _ready() -> void:
 	if "--capture-lobby" in args:
 		capture_lobby.call_deferred()
 
+# Keep gameplay coordinates fixed, but rasterize at the physical display resolution.
+func apply_render_quality() -> void:
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if tv and not tv_native_resolution else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+
+func advance_adventure() -> void:
+	if state != "finish": return
+	level = (level + 1) % Worlds.COUNT
+	start_race()
+
 func schedule_layout() -> void:
 	if not layout_pending:
 		layout_pending = true
@@ -150,6 +160,7 @@ func schedule_layout() -> void:
 func layout_ui() -> void:
 	drag_id = -1
 	layout_pending = false
+	apply_render_quality()
 	layout_pixels = get_window().size
 	var pixels := Vector2(layout_pixels)
 	var aspect := pixels.x / maxf(pixels.y, 1)
@@ -550,6 +561,8 @@ func show_settings() -> void:
 			else: effects_volume = value
 			apply_audio(); save_options())
 	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 356), Vector2(r.size.x - 40, 60)), func(): low_detail = not low_detail; save_options(); show_settings())
+	if tv:
+		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else "اقتصادية 720p"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): tv_native_resolution = not tv_native_resolution; apply_render_quality(); save_options(); show_settings())
 	if not tv:
 		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): haptics = not haptics; save_options(); show_settings())
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
@@ -559,7 +572,7 @@ func show_settings() -> void:
 func show_finish() -> void:
 	state = "finish"
 	play_sound("win")
-	if (player_count == 1 or model.cooperative) and not demo:
+	if not demo:
 		unlocked = maxi(unlocked, mini(Worlds.COUNT - 1, level + 1))
 		var previous: Dictionary = records.get(str(level), {})
 		records[str(level)] = {"stars": maxi(int(previous.get("stars", 0)), model.players[0].stars), "secrets": maxi(int(previous.get("secrets", 0)), model.players[0].secrets.size())}
@@ -584,10 +597,10 @@ func build_finish() -> void:
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
 	if player_count == 2: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else ("فاز آدم الأزرق" if winner == 0 else "فاز آدم البرتقالي"))) + "\n%.2f ثانية" % model.elapsed
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
-	var title := "المغامرة التالية  ▶" if (player_count == 1 or model.cooperative) and level < Worlds.COUNT - 1 else "نلعب من جديد  ▶"
-	button(modal, title, Rect2(r.position + Vector2(25, r.size.y - 162), Vector2(r.size.x - 50, 64)), func():
-		if player_count == 1 or model.cooperative: level = mini(Worlds.COUNT - 1, level + 1)
-		start_race(), true).grab_focus()
+	var title := "المرحلة التالية  ▶"
+	if level % 3 == 2: title = "العالم التالي  ▶"
+	if level == Worlds.COUNT - 1: title = "رحلة جديدة  ▶"
+	button(modal, title, Rect2(r.position + Vector2(25, r.size.y - 162), Vector2(r.size.x - 50, 64)), advance_adventure, true).grab_focus()
 	button(modal, "الرئيسية", Rect2(r.position + Vector2(25, r.size.y - 82), Vector2(r.size.x - 50, 54)), show_lobby)
 
 func save_journey() -> void:
@@ -619,6 +632,7 @@ func load_options() -> void:
 	cooperative = bool(data.get("cooperative", false))
 	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
 	low_detail = bool(data.get("low_detail", false))
+	tv_native_resolution = bool(data.get("tv_native_resolution", true))
 	music_volume = clampf(float(data.get("music", 0.5)), 0, 1)
 	effects_volume = clampf(float(data.get("effects", 0.7)), 0, 1)
 	haptics = bool(data.get("haptics", true))
@@ -628,7 +642,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
