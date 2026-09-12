@@ -1,0 +1,11 @@
+.godot/
+android/
+builds/
+.DS_Store
+*.log
+*.keystore
+*.p12
+*.mobileprovision
+*.xlsx
+concepts/
+.env*

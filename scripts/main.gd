@@ -1,0 +1,808 @@
+extends Node2D
+const Wardrobe = preload("res://scripts/wardrobe.gd")
+const Model = preload("res://scripts/race_model.gd")
+const Stage = preload("res://scripts/stage.gd")
+const FONT = preload("res://assets/Arabic.ttf")
+const BACKGROUND = preload("res://assets/garden-v2.png")
+const SHEET = preload("res://assets/adam-motion.png")
+const KEY = preload("res://scripts/chroma.gdshader")
+const BLUE := Color("167a95")
+const ORANGE := Color("cc6542")
+const INK := Color("214c4e")
+const Worlds = preload("res://scripts/worlds.gd")
+const DIFFICULTIES := ["رحلة هادئة", "مغامرة", "تحدّي"]
+var model = Model.new(true, 1)
+var state := "lobby"
+var resume_state := "racing"
+var tv := false
+var mobile := false
+var player_count := 1
+var level := 0
+var difficulty := 0
+var costume := 0
+var backpack := 0
+var hat := 0
+var cooperative := false
+var preview_outfit := 0
+var preview_pack := 0
+var preview_hat := 0
+var guide_label: Label
+var easy := true
+var low_detail := false
+var sound_on := true
+var music_volume := 0.5
+var effects_volume := 0.7
+var haptics := true
+var tutorial_seen := false
+var unlocked := 0
+var records: Dictionary = {}
+var saved_game: Dictionary = {}
+var slots := [-1, -1]
+var held_keys: Dictionary = {}
+var touch_directions := Vector2.ZERO
+var touch_ids: Dictionary = {}
+var drag_id := -1
+var drag_target := 280.0
+var countdown := 3.0
+var last_count := 4
+var ui: Control
+var modal: Control
+var hud: Control
+var views: Array = []
+var stages: Array = []
+var star_labels: Array = []
+var height_labels: Array = []
+var clock_label: Label
+var count_label: Label
+var perf_label: Label
+var sounds: Dictionary = {}
+var music: AudioStreamPlayer
+var demo := false
+var smoke := false
+var saved_capture := false
+var total_time := 0.0
+var save_timer := 0.0
+var frame_times: Array[float] = []
+var showing_perf := false
+var canvas_size := Vector2(540, 960)
+var safe_top := 20.0
+var safe_bottom := 20.0
+var menu_rect := Rect2()
+var layout_pending := false
+var layout_pixels := Vector2i.ZERO
+var settings_return := "lobby"
+var illustration: Sprite2D
+var help_time := 0.0
+var storage_path := "user://journey.json"
+
+func _ready() -> void:
+	Engine.max_fps = 60
+	var args := OS.get_cmdline_user_args()
+	tv = "--tv" in args or "--tv-device" in args
+	mobile = OS.get_name() in ["Android", "iOS"]
+	demo = "--demo" in args or "--smoke" in args
+	smoke = "--smoke" in args
+	if OS.has_feature("debug"):
+		for marker in ["smoke.flag", "smoke-tv.flag"]:
+			if FileAccess.file_exists("user://" + marker):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path("user://" + marker))
+				demo = true
+				smoke = true
+				tv = marker == "smoke-tv.flag"
+	if demo or "--test" in args or "--capture-lobby" in args:
+		storage_path = "user://test-journey.json"
+	else:
+		load_options()
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if tv else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	if mobile:
+		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE if tv else DisplayServer.SCREEN_PORTRAIT)
+	elif tv:
+		get_window().size = Vector2i(1280, 720)
+	else:
+		get_window().size = Vector2i(540, 960)
+	player_count = 2 if tv and demo else 1
+	model = Model.new(difficulty == 0, player_count, level, difficulty)
+	ui = Control.new()
+	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(ui)
+	var theme := Theme.new()
+	theme.default_font = FONT
+	theme.default_font_size = 20
+	ui.theme = theme
+	for i in range(2):
+		var container := Control.new()
+		container.clip_contents = true
+		container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui.add_child(container)
+		var stage := Stage.new()
+		stage.game = self
+		stage.index = i
+		container.add_child(stage)
+		views.append(container)
+		stages.append(stage)
+	hud = Control.new()
+	hud.z_index = 10
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(hud)
+	modal = Control.new()
+	modal.z_index = 20
+	modal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(modal)
+	setup_audio()
+	Input.joy_connection_changed.connect(controller_changed)
+	get_viewport().size_changed.connect(schedule_layout)
+	layout_ui()
+	show_lobby()
+	if demo:
+		cooperative = "--coop" in args
+		if "--level" in args:
+			level = clampi(int(args[args.find("--level") + 1]), 0, Worlds.COUNT - 1)
+		start_race()
+	if "--capture-lobby" in args:
+		capture_lobby.call_deferred()
+
+func schedule_layout() -> void:
+	if not layout_pending:
+		layout_pending = true
+		layout_ui.call_deferred()
+
+func layout_ui() -> void:
+	drag_id = -1
+	layout_pending = false
+	layout_pixels = get_window().size
+	var pixels := Vector2(layout_pixels)
+	var aspect := pixels.x / maxf(pixels.y, 1)
+	canvas_size = Vector2(1280, 720) if tv else Vector2(maxf(540, 800 * aspect), maxf(800, 540 / aspect))
+	get_window().content_scale_size = Vector2i(canvas_size)
+	ui.size = canvas_size
+	modal.size = canvas_size
+	hud.size = canvas_size
+	safe_top = 20
+	safe_bottom = 20
+	if mobile and not tv:
+		var safe := DisplayServer.get_display_safe_area()
+		var screen := Vector2(DisplayServer.screen_get_size())
+		var ratio := canvas_size.y / maxf(screen.y, 1)
+		safe_top = maxf(20, safe.position.y * ratio)
+		safe_bottom = maxf(20, (screen.y - safe.end.y) * ratio)
+	var available := canvas_size.y - safe_top - safe_bottom
+	var width := minf(490, canvas_size.x - 36)
+	menu_rect = Rect2((canvas_size.x - width) / 2, safe_top + maxf(0, (available - 820) / 2), width, minf(available, 820))
+	var field_top := safe_top + 84
+	var field_bottom := safe_bottom + (18 if tv else 54)
+	for i in range(2):
+		var w := (canvas_size.x - 96) / 2 if tv and player_count == 2 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76)
+		var x := 32 + i * (w + 32) if tv and player_count == 2 else (canvas_size.x - w) / 2
+		views[i].position = Vector2(x, field_top)
+		views[i].size = Vector2(w, maxf(240, canvas_size.y - field_top - field_bottom))
+		stages[i].scale = Vector2.ONE * w / Model.WIDTH
+		stages[i].view_height = views[i].size.y * Model.WIDTH / w
+		views[i].visible = state not in ["lobby", "settings"] and i < player_count
+	build_hud()
+	if state == "lobby": show_lobby()
+	elif state == "paused": show_pause()
+	elif state == "settings": show_settings()
+	elif state == "tutorial": show_tutorial()
+	elif state == "worlds": show_worlds()
+	elif state == "wardrobe": show_wardrobe()
+	elif state == "finish": build_finish()
+	elif state == "countdown": build_countdown()
+	queue_redraw()
+func box(parent: Node, rect: Rect2, fill: Color, border: Color = Color.TRANSPARENT, radius: int = 20) -> Panel:
+	var panel := Panel.new()
+	panel.position = rect.position
+	panel.size = rect.size
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.set_corner_radius_all(radius)
+	if border.a > 0:
+		style.set_border_width_all(2)
+		style.border_color = border
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+	return panel
+
+func label(parent: Node, text: String, rect: Rect2, font_size: int = 22, color: Color = INK, alignment: int = HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+	var item := Label.new()
+	item.text = text
+	item.position = rect.position
+	item.size = rect.size
+	item.horizontal_alignment = alignment
+	item.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	item.add_theme_font_size_override("font_size", font_size)
+	item.add_theme_color_override("font_color", color)
+	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(item)
+	return item
+
+func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary: bool = false) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.position = rect.position
+	b.size = rect.size
+	b.add_theme_font_size_override("font_size", 18 if tv else 21)
+	b.add_theme_color_override("font_color", Color("fff9e8") if primary else INK)
+	b.add_theme_color_override("font_hover_color", Color("fff9e8") if primary else INK)
+	b.add_theme_color_override("font_focus_color", Color("fff9e8") if primary else INK)
+	for kind in ["normal", "hover", "pressed", "focus"]:
+		var s := StyleBoxFlat.new()
+		s.bg_color = Color("287b68") if primary else Color("edf1de")
+		if kind == "hover" or kind == "pressed":
+			s.bg_color = s.bg_color.lightened(0.10)
+		s.set_corner_radius_all(14)
+		s.set_content_margin_all(8)
+		if kind == "focus":
+			s.bg_color = Color.TRANSPARENT
+			s.border_color = Color("e9b542")
+			s.set_border_width_all(4)
+		b.add_theme_stylebox_override(kind, s)
+	b.pressed.connect(callback)
+	parent.add_child(b)
+	return b
+
+func clear_modal() -> void:
+	illustration = null
+	for child in modal.get_children():
+		modal.remove_child(child)
+		child.queue_free()
+
+func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.texture = SHEET
+	var cell := Vector2(SHEET.get_width() / 4.0, SHEET.get_height() / 2.0)
+	sprite.region_enabled = true
+	sprite.region_rect = Rect2(Vector2(frame, 1 if row == 1 else 0) * cell, cell)
+	sprite.position = at
+	sprite.scale = Vector2.ONE * height / cell.y
+	sprite.material = ShaderMaterial.new()
+	sprite.material.shader = KEY
+	Wardrobe.style(sprite, row, preview_pack if state == "wardrobe" else backpack)
+	var cap := Node2D.new()
+	cap.position = Wardrobe.HEADS[frame] - cell / 2
+	var selected_hat := preview_hat if state == "wardrobe" else hat
+	cap.draw.connect(func(): Wardrobe.draw_cap(cap, selected_hat))
+	sprite.add_child(cap)
+	parent.add_child(sprite)
+	return sprite
+
+func show_lobby() -> void:
+	state = "lobby"
+	for v in views: v.hide()
+	hud.hide()
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color(1, 0.984, 0.94, 0.97), Color("fff9e5"), 32)
+	var compact := r.size.y < 730
+	var hero_height := 135.0 if compact else 205.0
+	label(modal, "مغامرات آدم", Rect2(r.position + Vector2(15, 12), Vector2(r.size.x - 30, 66)), 39)
+	label(modal, "كل قفزة… حكاية!", Rect2(r.position + Vector2(15, 75), Vector2(r.size.x - 30, 34)), 20, BLUE)
+	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 114 + hero_height / 2), hero_height)
+	var y := r.position.y + 120 + hero_height
+	var gap := 58.0 if compact else 70.0
+	if tv:
+		button(modal, "لاعب واحد" + (" ✓" if player_count == 1 else ""), Rect2(r.position.x + 18, y, r.size.x / 2 - 24, 46), func(): player_count = 1; layout_ui())
+		button(modal, "لاعبان" + (" ✓" if player_count == 2 else ""), Rect2(r.position.x + r.size.x / 2 + 6, y, r.size.x / 2 - 24, 46), func(): player_count = 2; layout_ui())
+		y += gap
+	button(modal, Worlds.title(level) + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), show_worlds)
+	y += gap
+	button(modal, DIFFICULTIES[difficulty] + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby())
+	y += gap
+	if player_count == 1:
+		button(modal, "ملابس ومكافآت آدم  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): show_wardrobe(true))
+	else:
+		button(modal, "الوضع: " + ("تعاون عائلي" if cooperative else "سباق إلى القمة") + "  ‹", Rect2(r.position.x + 20, y, r.size.x - 40, 46), func(): cooperative = not cooperative; save_options(); show_lobby())
+	y += gap
+	var start := button(modal, "ابدأ المغامرة  ▶" if player_count == 1 else ("لنصل معًا  ▶" if cooperative else "ابدأ السباق  ▶"), Rect2(r.position.x + 20, y, r.size.x - 40, 60), begin_adventure, true)
+	y += 70
+	if not saved_game.is_empty() and player_count == 1:
+		button(modal, "أكمل رحلتك المحفوظة", Rect2(r.position.x + 20, y, r.size.x - 40, 44), restore_journey)
+		y += 64
+	button(modal, "الإعدادات", Rect2(r.position.x + 20, y, r.size.x / 2 - 25, 46), func(): settings_return = "lobby"; show_settings())
+	button(modal, "كيف ألعب؟", Rect2(r.position.x + r.size.x / 2 + 5, y, r.size.x / 2 - 25, 46), show_tutorial)
+	if tv:
+		label(modal, "%s\n%s" % [controller_text(0), controller_text(1)] if player_count == 2 else controller_text(0), Rect2(20, canvas_size.y - 130, maxf(180, menu_rect.position.x - 35), 85), 16)
+	start.grab_focus()
+	queue_redraw()
+
+func controller_text(i: int) -> String:
+	return "يد %d متّصلة ✓" % (i + 1) if slots[i] in Input.get_connected_joypads() else "الزر السفلي للانضمام"
+
+func begin_adventure() -> void:
+	if tv and mobile:
+		var connected := Input.get_connected_joypads()
+		for i in range(player_count):
+			if not slots[i] in connected:
+				for id in connected:
+					if not slots.has(id): slots[i] = id; break
+		for i in range(player_count):
+			if not slots[i] in connected:
+				clear_modal()
+				box(modal, menu_rect, Color("fff9e9"))
+				label(modal, "وصّل يد تحكم لكل لاعب\nثم الزر السفلي للانضمام", Rect2(menu_rect.position + Vector2(20, 120), Vector2(menu_rect.size.x - 40, 160)), 24)
+				button(modal, "رجوع", Rect2(menu_rect.position + Vector2(30, 330), Vector2(menu_rect.size.x - 60, 64)), show_lobby).grab_focus()
+				return
+	if not tutorial_seen and not demo:
+		show_tutorial()
+	else:
+		start_race()
+
+func show_tutorial() -> void:
+	state = "tutorial"
+	clear_modal()
+	hud.hide()
+	for v in views: v.hide()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "نقفز إلى القمّة!", Rect2(r.position + Vector2(20, 30), Vector2(r.size.x - 40, 60)), 32)
+	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 245), 220, 1)
+	label(modal, "←                    →", Rect2(r.position + Vector2(20, 295), Vector2(r.size.x - 40, 65)), 43, BLUE)
+	label(modal, "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان", Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
+	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
+	help_time = 0
+	play_sound("help")
+
+func build_hud() -> void:
+	for c in hud.get_children(): hud.remove_child(c); c.queue_free()
+	star_labels.clear()
+	height_labels.clear()
+	for i in range(player_count):
+		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
+		box(hud, rect, Color(1, 0.99, 0.95, 0.95), Color("fff7df"), 22)
+		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(100, 46)), 24, Color("a06a20")))
+		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(106, 7), Vector2(180 if player_count == 2 else maxf(90, rect.size.x - 165), 46)), 18))
+		if player_count == 2:
+			label(hud, "آدم الأزرق" if i == 0 else "آدم البرتقالي", Rect2(rect.end.x - 246, rect.position.y + 8, 190, 46), 21, BLUE if i == 0 else ORANGE)
+	var pause_btn := button(hud, "Ⅱ", Rect2(canvas_size.x - 67, safe_top + 5, 51, 55), pause_race)
+	pause_btn.focus_mode = Control.FOCUS_NONE
+	clock_label = label(hud, "", Rect2(canvas_size.x / 2 - 40, safe_top + 64, 80, 30), 16)
+	clock_label.visible = tv and player_count == 2
+	perf_label = label(hud, "", Rect2(5, safe_top + 70, canvas_size.x - 10, 30), 12)
+	perf_label.visible = showing_perf
+	if not tv:
+		box(hud, Rect2(20, canvas_size.y - safe_bottom - 46, canvas_size.x - 40, 44), Color(1, 0.98, 0.92, 0.95), Color.TRANSPARENT, 18)
+		guide_label = label(hud, "اسحب للتحرّك • المسار الذهبي يمنح نجومًا أكثر", Rect2(25, canvas_size.y - safe_bottom - 46, canvas_size.x - 50, 44), 17)
+	hud.visible = state in ["countdown", "racing", "paused", "finish"]
+
+func start_race() -> void:
+	if sounds.has("help"): sounds.help.stop()
+	player_count = clampi(player_count, 1, 2) if tv else 1
+	easy = difficulty == 0
+	model = Model.new(easy, player_count, level, difficulty)
+	model.cooperative = tv and player_count == 2 and cooperative
+	select_music()
+	state = "countdown"
+	countdown = 3
+	last_count = 4
+	touch_directions = Vector2.ZERO
+	touch_ids.clear()
+	drag_id = -1
+	held_keys.clear()
+	for stage in stages: stage.sparkles.clear(); stage.debris.clear()
+	layout_ui()
+	save_journey()
+
+func build_countdown() -> void:
+	clear_modal()
+	count_label = label(modal, str(maxi(1, ceili(countdown))), Rect2(canvas_size.x / 2 - 130, canvas_size.y * 0.32, 260, 180), 110, INK)
+
+func _physics_process(dt: float) -> void:
+	if state == "countdown":
+		countdown -= dt
+		var n := ceili(countdown)
+		if n != last_count and n > 0: last_count = n; play_sound("count")
+		count_label.text = str(maxi(n, 1))
+		if countdown <= 0: clear_modal(); state = "racing"; play_sound("go")
+	elif state == "racing":
+		var directions := read_directions()
+		if demo: directions = Vector2(model.autopilot(0), model.autopilot(1) if player_count == 2 else 0)
+		for event in model.step(dt, directions):
+			match event.kind:
+				"star", "secret":
+					stages[event.player].burst(event.position)
+					play_sound("star" if event.kind == "star" else "checkpoint")
+				"crumble": stages[event.player].crumble(event.position, event.width); play_sound("crumble")
+				"crack": play_sound("crack")
+				"power": stages[event.player].burst(event.position); play_sound("power")
+				"checkpoint": play_sound("checkpoint"); save_journey()
+				"rescue": play_sound("rescue")
+				"bump":
+					if haptics and mobile and not tv: Input.vibrate_handheld(30, 0.35)
+				"bounce":
+					if event.player == 0: play_sound("bounce" + str(model.world))
+		if model.complete(): show_finish()
+		save_timer += dt
+		if save_timer > 5: save_timer = 0; save_journey()
+	if hud.visible:
+		for i in range(player_count):
+			star_labels[i].text = "★ %d" % model.players[i].stars
+			height_labels[i].text = "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
+		if model.cooperative:
+			for i in range(player_count):
+				if model.players[i].finish >= 0: height_labels[i].text = "بانتظار رفيقك ♥"
+		if not tv and is_instance_valid(guide_label):
+			var p: Dictionary = model.players[0]
+			var abilities := ""
+			if p.shield > 0: abilities += "درع %dث  " % ceili(p.shield)
+			if p.magnet > 0: abilities += "مغناطيس %dث  " % ceili(p.magnet)
+			if p.bubble: abilities += "فقاعة إنقاذ ✓"
+			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • المسار الذهبي: نجوم أكثر")
+		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
+
+func read_directions() -> Vector2:
+	var result := touch_directions
+	if not tv and drag_id != -1:
+		result.x = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
+	result.x += float(held_keys.get(KEY_D, false)) - float(held_keys.get(KEY_A, false))
+	result[1 if player_count == 2 else 0] += float(held_keys.get(KEY_RIGHT, false)) - float(held_keys.get(KEY_LEFT, false))
+	for i in range(player_count):
+		if slots[i] in Input.get_connected_joypads():
+			var axis := Input.get_joy_axis(slots[i], JOY_AXIS_LEFT_X)
+			if absf(axis) > 0.20: result[i] += signf(axis) * (absf(axis) - 0.20) / 0.80
+			result[i] += float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_RIGHT)) - float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_LEFT))
+	return result.clamp(Vector2(-1, -1), Vector2.ONE)
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey: held_keys[event.physical_keycode] = event.pressed
+	if not tv and state == "racing":
+		if event is InputEventScreenTouch:
+			if event.pressed and drag_id == -1 and event.position.y > safe_top + 84:
+				drag_id = event.index
+				drag_target = model.players[0].p.x
+				get_viewport().set_input_as_handled()
+			elif not event.pressed and event.index == drag_id:
+				drag_id = -1
+				get_viewport().set_input_as_handled()
+		elif event is InputEventScreenDrag and event.index == drag_id:
+			move_drag(event.relative.x)
+			get_viewport().set_input_as_handled()
+		elif not mobile and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed and drag_id == -1 and event.position.y > safe_top + 84:
+				drag_id = -2
+				drag_target = model.players[0].p.x
+			elif not event.pressed and drag_id == -2: drag_id = -1
+		elif not mobile and event is InputEventMouseMotion and drag_id == -2:
+			move_drag(event.relative.x)
+	if event is InputEventJoypadButton and event.pressed:
+		if not slots.has(event.device) and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_START]:
+			for i in range(2 if tv else 1):
+				if not slots[i] in Input.get_connected_joypads():
+					slots[i] = event.device
+					if state == "lobby": show_lobby()
+					elif state == "paused": show_pause()
+					get_viewport().set_input_as_handled()
+					return
+		if event.button_index == JOY_BUTTON_START:
+			if state == "paused": resume_race()
+			elif state in ["racing", "countdown"]: pause_race()
+			elif state == "lobby": begin_adventure()
+			get_viewport().set_input_as_handled()
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
+			if state == "paused": resume_race()
+			elif state in ["racing", "countdown"]: pause_race()
+			elif state in ["settings", "tutorial"]: show_lobby()
+			get_viewport().set_input_as_handled()
+		elif event.physical_keycode == KEY_F3:
+			showing_perf = not showing_perf
+			perf_label.visible = showing_perf
+
+func controller_changed(device: int, connected: bool) -> void:
+	if not connected and slots.slice(0, player_count).has(device) and state in ["racing", "countdown"]: pause_race()
+	if state == "lobby": show_lobby()
+	elif state == "paused": show_pause()
+
+func pause_race() -> void:
+	if not state in ["racing", "countdown"]: return
+	resume_state = state
+	state = "paused"
+	touch_directions = Vector2.ZERO
+	touch_ids.clear()
+	drag_id = -1
+	held_keys.clear()
+	save_journey()
+	show_pause()
+
+func show_pause() -> void:
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "استراحة صغيرة", Rect2(r.position + Vector2(15, 40), Vector2(r.size.x - 30, 65)), 33)
+	portrait(modal, costume, r.position + Vector2(r.size.x / 2, 210), 175)
+	var missing := false
+	for i in range(player_count): missing = missing or (slots[i] >= 0 and not slots[i] in Input.get_connected_joypads())
+	label(modal, "وصّل اليد أو اضغط الزر السفلي بيد بديلة" if missing else "رحلتك في انتظارك", Rect2(r.position + Vector2(10, 313), Vector2(r.size.x - 20, 45)), 19)
+	var resume := button(modal, "أكمل  ▶", Rect2(r.position + Vector2(25, 380), Vector2(r.size.x - 50, 64)), resume_race, true)
+	resume.disabled = missing
+	button(modal, "الإعدادات", Rect2(r.position + Vector2(25, 462), Vector2(r.size.x - 50, 54)), func(): settings_return = "paused"; show_settings())
+	button(modal, "الرئيسية", Rect2(r.position + Vector2(25, 534), Vector2(r.size.x - 50, 54)), show_lobby)
+	resume.grab_focus()
+
+func resume_race() -> void:
+	for i in range(player_count):
+		if slots[i] >= 0 and not slots[i] in Input.get_connected_joypads(): return
+	clear_modal()
+	state = resume_state
+	if state == "countdown": build_countdown()
+
+func show_settings() -> void:
+	state = "settings"
+	clear_modal()
+	hud.hide()
+	for v in views: v.hide()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "على راحتك", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
+	for i in range(2):
+		var y := r.position.y + 120 + i * 105
+		label(modal, "الموسيقى" if i == 0 else "المؤثرات والإرشاد الصوتي", Rect2(r.position.x + 25, y, r.size.x - 50, 35), 22)
+		var slider := HSlider.new()
+		slider.position = Vector2(r.position.x + 40, y + 44)
+		slider.size = Vector2(r.size.x - 80, 38)
+		slider.min_value = 0
+		slider.max_value = 1
+		slider.step = 0.1
+		slider.value = music_volume if i == 0 else effects_volume
+		modal.add_child(slider)
+		slider.value_changed.connect(func(value):
+			if i == 0: music_volume = value
+			else: effects_volume = value
+			apply_audio(); save_options())
+	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 356), Vector2(r.size.x - 40, 60)), func(): low_detail = not low_detail; save_options(); show_settings())
+	if not tv:
+		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): haptics = not haptics; save_options(); show_settings())
+	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
+		if settings_return == "paused": state = "paused"; layout_ui()
+		else: show_lobby(), true).grab_focus()
+
+func show_finish() -> void:
+	state = "finish"
+	play_sound("win")
+	if (player_count == 1 or model.cooperative) and not demo:
+		unlocked = maxi(unlocked, mini(Worlds.COUNT - 1, level + 1))
+		var previous: Dictionary = records.get(str(level), {})
+		records[str(level)] = {"stars": maxi(int(previous.get("stars", 0)), model.players[0].stars), "secrets": maxi(int(previous.get("secrets", 0)), model.players[0].secrets.size())}
+		saved_game.clear()
+		save_options()
+	build_finish()
+	print("RACE_FINISHED players=%d level=%d time=%.3f" % [player_count, level, model.elapsed])
+
+func build_finish() -> void:
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	var winner := 0
+	var tie := false
+	if player_count == 2:
+		var a: float = model.players[0].finish
+		var b: float = model.players[1].finish
+		tie = a >= 0 and b >= 0 and absf(a - b) < 0.001
+		winner = 0 if a >= 0 and (b < 0 or a <= b) else 1
+	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
+	illustration = portrait(modal, winner if player_count == 2 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 1)
+	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
+	if player_count == 2: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else ("فاز آدم الأزرق" if winner == 0 else "فاز آدم البرتقالي"))) + "\n%.2f ثانية" % model.elapsed
+	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
+	var title := "المغامرة التالية  ▶" if (player_count == 1 or model.cooperative) and level < Worlds.COUNT - 1 else "نلعب من جديد  ▶"
+	button(modal, title, Rect2(r.position + Vector2(25, r.size.y - 162), Vector2(r.size.x - 50, 64)), func():
+		if player_count == 1 or model.cooperative: level = mini(Worlds.COUNT - 1, level + 1)
+		start_race(), true).grab_focus()
+	button(modal, "الرئيسية", Rect2(r.position + Vector2(25, r.size.y - 82), Vector2(r.size.x - 50, 54)), show_lobby)
+
+func save_journey() -> void:
+	if player_count == 1 and state in ["racing", "paused", "countdown"] and not demo:
+		saved_game = model.snapshot()
+		save_options()
+
+func restore_journey() -> void:
+	var restored = Model.restore(saved_game)
+	if restored == null: saved_game.clear(); show_lobby(); return
+	player_count = 1
+	model = restored
+	level = model.level
+	difficulty = model.difficulty
+	select_music()
+	easy = difficulty == 0
+	state = "paused"
+	resume_state = "racing"
+	layout_ui()
+
+func load_options() -> void:
+	if not FileAccess.file_exists(storage_path): return
+	var data = JSON.parse_string(FileAccess.get_file_as_string(storage_path))
+	if not data is Dictionary: return
+	difficulty = clampi(int(data.get("difficulty", 0)), 0, 2)
+	costume = clampi(int(data.get("costume", 0)), 0, 3)
+	backpack = clampi(int(data.get("backpack", 0)), 0, 2)
+	hat = clampi(int(data.get("hat", 0)), 0, 2)
+	cooperative = bool(data.get("cooperative", false))
+	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
+	low_detail = bool(data.get("low_detail", false))
+	music_volume = clampf(float(data.get("music", 0.5)), 0, 1)
+	effects_volume = clampf(float(data.get("effects", 0.7)), 0, 1)
+	haptics = bool(data.get("haptics", true))
+	tutorial_seen = bool(data.get("tutorial", false)) and int(data.get("controls_version", 0)) == 1
+	if data.get("saved") is Dictionary: saved_game = data.saved
+	if data.get("records") is Dictionary: records = data.records
+
+func save_options() -> void:
+	if demo: return
+	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "hat": hat, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+		file.close()
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(storage_path + ".tmp"), ProjectSettings.globalize_path(storage_path))
+
+func setup_audio() -> void:
+	for key in ["bounce", "bounce0", "bounce1", "bounce2", "bounce3", "bounce4", "crack", "crumble", "power", "star", "count", "go", "checkpoint", "rescue", "win", "help"]:
+		var player := AudioStreamPlayer.new()
+		player.stream = load("res://assets/audio/" + key + ".wav")
+		add_child(player)
+		sounds[key] = player
+	music = AudioStreamPlayer.new()
+	music.stream = load("res://assets/audio/garden.wav")
+	add_child(music)
+	music.finished.connect(func(): if music_volume > 0: music.play())
+	apply_audio()
+
+func apply_audio() -> void:
+	music.volume_db = linear_to_db(maxf(0.001, music_volume)) - 18
+	if music_volume == 0: music.stop()
+	elif not music.playing: music.play()
+	for key in sounds:
+		sounds[key].volume_db = linear_to_db(maxf(0.001, effects_volume)) + (-14 if key.begins_with("bounce") else (-1 if key == "help" else -6))
+
+func play_sound(key: String) -> void:
+	if sound_on and effects_volume > 0 and sounds.has(key): sounds[key].play()
+
+func stop_audio() -> void:
+	if is_instance_valid(music): music.stop()
+	for player in sounds.values(): player.stop()
+
+func _exit_tree() -> void:
+	stop_audio()
+
+func _notification(what: int) -> void:
+	if demo or not is_instance_valid(ui): return
+	if what in [NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_APPLICATION_PAUSED]:
+		held_keys.clear()
+		touch_directions = Vector2.ZERO
+		touch_ids.clear()
+		drag_id = -1
+		if state in ["racing", "countdown"]: pause_race()
+		stop_audio()
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN and is_instance_valid(music): apply_audio()
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		if state in ["racing", "countdown"]: pause_race()
+		elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
+		elif state != "lobby": show_lobby()
+		else: get_tree().quit()
+
+func _process(dt: float) -> void:
+	# Fixed-resolution TV viewports do not always signal a physical rotation.
+	if get_window().size != layout_pixels: schedule_layout()
+	total_time += dt
+	if is_instance_valid(illustration) and not low_detail:
+		help_time += dt
+		illustration.rotation = sin(help_time * 2) * 0.025
+		if state == "tutorial": illustration.position = menu_rect.position + Vector2(menu_rect.size.x / 2 + sin(help_time * 1.8) * 70, 230 - absf(sin(help_time * 2.4)) * 45)
+	frame_times.append(dt * 1000)
+	if frame_times.size() > 300: frame_times.pop_front()
+	if is_instance_valid(perf_label):
+		var sorted := frame_times.duplicate()
+		sorted.sort()
+		perf_label.text = "%d FPS • p95 %.1f ms • %.0f MB" % [Engine.get_frames_per_second(), sorted[int((sorted.size() - 1) * 0.95)], OS.get_static_memory_usage() / 1048576.0]
+	if smoke and not saved_capture and model.elapsed > 7:
+		saved_capture = true
+		capture("gameplay-tv.png" if tv else "gameplay-phone.png")
+	if smoke and state == "finish":
+		smoke = false
+		await capture("finish-tv.png" if tv else "finish-phone.png")
+		print("SMOKE_OK " + perf_label.text)
+		stop_audio()
+		await get_tree().create_timer(0.2).timeout
+		get_tree().quit()
+	if smoke and total_time > 100: push_error("Smoke timeout"); get_tree().quit(1)
+
+func capture(filename: String) -> void:
+	await RenderingServer.frame_post_draw
+	var path := ("res://builds/" if OS.has_feature("editor") else "user://") + filename
+	get_viewport().get_texture().get_image().save_png(path)
+
+func capture_lobby() -> void:
+	await get_tree().create_timer(1).timeout
+	await capture("lobby-tv.png" if tv else "lobby-phone.png")
+	stop_audio()
+	await get_tree().create_timer(0.2).timeout
+	get_tree().quit()
+
+func _draw() -> void:
+	if state in ["racing", "countdown", "paused", "finish"] and model.world > 0:
+		var texture: Texture2D = Stage.EXTRA_BG if model.world >= 3 else Stage.WORLD_BG
+		var panel: int = model.world - (3 if model.world >= 3 else 1)
+		draw_texture_rect_region(texture, Rect2(Vector2.ZERO, canvas_size), Rect2(panel * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height()))
+		return
+	var ratio := maxf(canvas_size.x / BACKGROUND.get_width(), canvas_size.y / BACKGROUND.get_height())
+	var size := BACKGROUND.get_size() * ratio
+	draw_texture_rect(BACKGROUND, Rect2((canvas_size - size) / 2, size), false)
+
+func move_drag(dx: float) -> void:
+	drag_target = clampf(drag_target + dx * Model.WIDTH / maxf(1, views[0].size.x), 24, Model.WIDTH - 24)
+
+func show_worlds() -> void:
+	hud.hide()
+	for view in views: view.hide()
+	state = "worlds"
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "عوالم آدم", Rect2(r.position + Vector2(10, 18), Vector2(r.size.x - 20, 64)), 34)
+	var scroll := ScrollContainer.new()
+	scroll.name = "WorldScroll"
+	scroll.position = r.position + Vector2(12, 94)
+	scroll.size = Vector2(r.size.x - 24, r.size.y - 192)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	modal.add_child(scroll)
+	var content := Control.new()
+	content.custom_minimum_size = Vector2(r.size.x - 42, Worlds.WORLDS.size() * 150)
+	scroll.add_child(content)
+	for world in range(Worlds.WORLDS.size()):
+		var y := world * 150.0
+		label(content, Worlds.WORLDS[world], Rect2(8, y, content.custom_minimum_size.x - 16, 36), 23)
+		for chapter in range(3):
+			var id := world * 3 + chapter
+			var width := (content.custom_minimum_size.x - 32) / 3
+			var b := button(content, "\u2066%d–%d\u2069\n%s" % [world + 1, chapter + 1, Worlds.NAMES[id] if id <= unlocked else "لم تُفتح بعد"], Rect2(8 + (2 - chapter) * (width + 8), y + 45, width, 78), func(): level = id; show_lobby(), id == level)
+			b.add_theme_font_size_override("font_size", 15)
+			b.disabled = id > unlocked
+	scroll.set_deferred("scroll_vertical", (level / 3) * 150)
+	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 85), Vector2(r.size.x - 50, 58)), show_lobby).grab_focus()
+
+func select_music() -> void:
+	if not is_instance_valid(music): return
+	music.stop()
+	music.stream = load("res://assets/audio/world%d.wav" % model.world)
+	apply_audio()
+
+func reward_stars() -> int:
+	var total := 0
+	for result in records.values(): total += maxi(0, int(result.get("stars", 0)))
+	return total
+
+func show_wardrobe(reset: bool = false) -> void:
+	if reset:
+		preview_outfit = costume
+		preview_pack = backpack
+		preview_hat = hat
+	state = "wardrobe"
+	hud.hide()
+	for view in views: view.hide()
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "خزانة آدم", Rect2(r.position + Vector2(10, 14), Vector2(r.size.x - 20, 60)), 34)
+	label(modal, "نجوم إنجازاتك: ★ %d" % reward_stars(), Rect2(r.position + Vector2(10, 78), Vector2(r.size.x - 20, 35)), 22)
+	illustration = portrait(modal, preview_outfit, r.position + Vector2(r.size.x / 2, 215), 190)
+	var choices := [Wardrobe.OUTFITS, Wardrobe.PACKS, Wardrobe.HATS]
+	var costs := [Wardrobe.OUTFIT_COST, Wardrobe.PACK_COST, Wardrobe.HAT_COST]
+	var selected := [preview_outfit, preview_pack, preview_hat]
+	var allowed := true
+	for category in range(3):
+		var price: int = costs[category][selected[category]]
+		var open := reward_stars() >= price
+		allowed = allowed and open
+		button(modal, choices[category][selected[category]] + (" ✓" if open else " • ★ %d" % price), Rect2(r.position + Vector2(25, 324 + category * 59), Vector2(r.size.x - 50, 48)), func():
+			match category:
+				0: preview_outfit = (preview_outfit + 1) % Wardrobe.OUTFITS.size()
+				1: preview_pack = (preview_pack + 1) % Wardrobe.PACKS.size()
+				2: preview_hat = (preview_hat + 1) % Wardrobe.HATS.size()
+			show_wardrobe())
+	var wear := button(modal, "ارتدِ هذه الملابس ✓" if allowed else "اجمع نجومًا لفتح هذه المكافأة", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 58)), func():
+		if reward_stars() < Wardrobe.OUTFIT_COST[preview_outfit] or reward_stars() < Wardrobe.PACK_COST[preview_pack] or reward_stars() < Wardrobe.HAT_COST[preview_hat]: return
+		costume = preview_outfit; backpack = preview_pack; hat = preview_hat
+		save_options(); show_lobby(), true)
+	wear.disabled = not allowed
+	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), show_lobby).grab_focus()
