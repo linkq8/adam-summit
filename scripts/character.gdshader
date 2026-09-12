@@ -20,7 +20,8 @@ void fragment() {
 	bool gold = c.r > 0.42 && c.g > 0.30 && c.b < min(c.r, c.g) * 0.60;
 	bool teal = c.g > c.r * 1.5 && c.b > c.r * 1.4;
 	// Bags and straps occupy the torso band; shoes and hair retain their colors.
-	if (pack_palette > 0 && UV.y > 0.32 && UV.y < 0.70 && (teal_pack ? teal : gold)) {
+	float frame_y = fract(UV.y * 3.0);
+	if (pack_palette > 0 && frame_y > 0.32 && frame_y < 0.70 && (teal_pack ? teal : gold)) {
 		float light = max(c.r, max(c.g, c.b));
 		c.rgb = (pack_palette == 1 ? vec3(1.0, 0.53, 0.39) : vec3(0.74, 0.52, 0.94)) * light;
 	}

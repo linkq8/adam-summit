@@ -6,10 +6,23 @@ const PACK_COST := [0, 60, 150]
 const HATS := ["دون قبعة", "قبعة المستكشف", "قبعة القمة"]
 const HAT_COST := [0, 90, 180]
 const CHARACTER_SHADER = preload("res://scripts/character.gdshader")
-const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v5.png", "res://assets/characters/adam-orange-v5.png", "res://assets/characters/adam-green-v5.png", "res://assets/characters/adam-purple-v5.png"]
-const FEET := [0.935, 0.835, 0.89, 0.935, 0.935]
-const HEADS := [Vector2(0.49, 0.20), Vector2(0.55, 0.20), Vector2(0.55, 0.22), Vector2(0.56, 0.345), Vector2(0.52, 0.22)]
-const BODY_HEIGHT := 0.79
+const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v6.png", "res://assets/characters/adam-orange-v6.png", "res://assets/characters/adam-green-v6.png", "res://assets/characters/adam-purple-v6.png"]
+const FEET := [0.975, 0.973, 0.946, 0.878, 0.775, 0.926, 0.944, 0.94, 0.946]
+const HEADS := [Vector2(0.49, 0.14), Vector2(0.49, 0.14), Vector2(0.49, 0.14), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.12), Vector2(0.49, 0.19), Vector2(0.49, 0.14)]
+const BODY_HEIGHT := 0.90
+const VICTORY_FRAME := 8
+static func jump_frame(velocity_y: float, squash: float) -> int:
+	if squash > 0.68: return 7
+	if velocity_y < -470: return 1
+	if velocity_y < -260: return 2
+	if velocity_y < -70: return 3
+	if velocity_y < 70: return 4
+	if velocity_y < 250: return 5
+	return 6
+static func cell_size(sprite: Sprite2D) -> Vector2:
+	return sprite.texture.get_size() / 3.0
+static func cap_scale(sprite: Sprite2D) -> float:
+	return cell_size(sprite).y / 418.0 * 0.8
 static func style(sprite: Sprite2D, outfit: int, pack: int) -> void:
 	if sprite.material == null or sprite.material.shader != CHARACTER_SHADER:
 		sprite.material = ShaderMaterial.new()
@@ -18,17 +31,17 @@ static func style(sprite: Sprite2D, outfit: int, pack: int) -> void:
 	sprite.material.set_shader_parameter("pack_palette", pack)
 	sprite.material.set_shader_parameter("teal_pack", outfit == 1)
 static func pose(sprite: Sprite2D, frame: int) -> void:
-	var cell := Vector2(sprite.texture.get_width() / 5.0, sprite.texture.get_height())
+	var cell := cell_size(sprite)
 	sprite.centered = false
 	sprite.region_enabled = true
 	sprite.region_filter_clip_enabled = true
-	sprite.region_rect = Rect2(Vector2(frame * cell.x, 0), cell)
+	sprite.region_rect = Rect2(Vector2(frame % 3, frame / 3) * cell, cell)
 	sprite.offset = Vector2(-cell.x / 2, -FEET[frame] * cell.y)
 static func cap_position(sprite: Sprite2D, frame: int) -> Vector2:
-	var cell := Vector2(sprite.texture.get_width() / 5.0, sprite.texture.get_height())
+	var cell := cell_size(sprite)
 	return HEADS[frame] * cell + sprite.offset
 static func scale_for(sprite: Sprite2D, height: float) -> float:
-	return height / (sprite.texture.get_height() * BODY_HEIGHT)
+	return height / (cell_size(sprite).y * BODY_HEIGHT)
 static func draw_cap(canvas: Node2D, hat: int) -> void:
 	if hat == 0: return
 	var tint := Color("2a9390") if hat == 1 else Color("8166b3")

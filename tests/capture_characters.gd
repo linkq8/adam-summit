@@ -7,8 +7,8 @@ func run():
 	game.clear_modal(); game.hud.hide()
 	for v in game.views: v.hide()
 	for outfit in range(4):
-		for frame in range(5):
-			game.portrait(game.modal, outfit, Vector2(128 + frame * 256, 128 + outfit * 172), 142, frame, outfit % 3, outfit % 3)
+		for frame in range(9):
+			game.portrait(game.modal, outfit, Vector2(70 + frame * 142, 128 + outfit * 172), 142, frame, outfit % 3, outfit % 3)
 	await process_frame; await process_frame; await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("res://builds/characters-073.png")
+	root.get_texture().get_image().save_png("res://builds/characters-075.png")
 	game.stop_audio(); game.queue_free(); await process_frame; quit()

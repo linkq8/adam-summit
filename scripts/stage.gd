@@ -77,10 +77,9 @@ func _process(dt: float) -> void:
 		if terrain[i].visible: terrain[i].position = Vector2(game.model.platform_x(i), y) + offsets[i]
 		branches[i].visible = on_screen and plat.has("branch_x") and not p.branch_hits.has(i)
 		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, y) + branch_offsets[i]
-	var frame := 1 if p.v.y < -80 else 2
-	if p.squash > 0.68: frame = 3
+	var frame := Wardrobe.jump_frame(p.v.y, p.squash)
 	if game.state in ["countdown", "paused"]: frame = 0
-	if game.state == "finish": frame = 4
+	if game.state == "finish": frame = Wardrobe.VICTORY_FRAME
 	var row: int = game.player_outfits[index] if game.player_count > 1 else game.costume
 	var pack: int = game.player_packs[index] if game.player_count > 1 else game.backpack
 	if row != old_row or pack != old_pack:
@@ -91,7 +90,7 @@ func _process(dt: float) -> void:
 	if old_hat != hat or frame != old_frame or old_face != p.face:
 		cap.position = Wardrobe.cap_position(hero, frame)
 		cap.position.x *= p.face
-		cap.scale.x = p.face
+		cap.scale = Vector2(p.face, 1) * Wardrobe.cap_scale(hero)
 		cap.queue_redraw()
 	old_face = p.face; old_hat = hat; old_frame = frame; old_row = row
 	hero.position = Vector2(p.p.x, p.p.y - camera)

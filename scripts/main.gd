@@ -296,6 +296,7 @@ func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0
 	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	var cap := Node2D.new()
 	cap.position = Wardrobe.cap_position(sprite, frame)
+	cap.scale = Vector2.ONE * Wardrobe.cap_scale(sprite)
 	var selected_hat := hat_override if hat_override >= 0 else (preview_hat if state == "wardrobe" else hat)
 	cap.draw.connect(func(): Wardrobe.draw_cap(cap, selected_hat))
 	sprite.add_child(cap)
@@ -634,7 +635,7 @@ func build_finish() -> void:
 			elif absf(t - best) < 0.001: tie = true
 
 	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
-	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, 4, player_packs[winner] if player_count > 1 else backpack, player_hats[winner] if player_count > 1 else hat)
+	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, Wardrobe.VICTORY_FRAME, player_packs[winner] if player_count > 1 else backpack, player_hats[winner] if player_count > 1 else hat)
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
 	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % model.elapsed
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
@@ -943,6 +944,7 @@ func show_players(focus_index: int = -1) -> void:
 		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
 		for child in avatar.get_children(): child.queue_free()
 		var cap := Node2D.new(); cap.position = Wardrobe.cap_position(avatar, 0)
+		cap.scale = Vector2.ONE * Wardrobe.cap_scale(avatar)
 		cap.draw.connect(func(): Wardrobe.draw_cap(cap, player_hats[i]))
 		avatar.add_child(cap)
 		for category in range(3):

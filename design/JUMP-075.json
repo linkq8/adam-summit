@@ -1,0 +1,18 @@
+{
+  "mode": "built-in image_gen",
+  "base": "Production sprite animation sheet, edit referenced Adam BLUE outfit character. Preserve same four-year-old boy face, hair, cobalt jacket, white shirt, navy shorts, blue shoes and yellow backpack, same premium illustrated style. NEW EXACT 3 columns by 3 rows grid (9 frames), square high resolution 3072x3072 if possible. Each cell identical dimensions. FULL BODY centered inside each cell with generous empty magenta gutters. Same head size/body scale in every frame. Row-major poses: 0 relaxed standing; 1 upward takeoff legs close; 2 early rising knees slightly bent; 3 late rising feet parallel; 4 apex compact small knee bend; 5 early descent both feet down; 6 landing approach feet parallel under hips; 7 contact soft knee bend absorbing impact; 8 quiet victory one bent fist raised. CRITICAL all seven action frames1-7 have BOTH FEET close and almost level at same height directly BELOW the torso center, never split legs, never one knee forward and other leg trailing, never sideways running or dramatic diagonal leap. Distance between feet at most hip width. Clear predictable landing point centered under pelvis. Upright balanced torso facing mostly forward, subtle three-quarter to right, concentrated friendly closed-mouth expression. Elbows low bent near sides for balance, no waving hands. This is a restrained vertical adventure hop, grounded believable child movement. Feet at the same cell baseline 90% height; head lowers naturally when knees bend, no rescaling between frames. Keep all 9 poses separate, no overlap or cropped limbs. Absolutely flat solid #FF00FF magenta background, no shadows, no text, no gridlines.",
+  "variants": [
+    {
+      "name": "orange",
+      "prompt": "Edit image1, a 3x3 nine-frame Adam sprite atlas. Preserve EXACT nine poses, their geometry and positions, face identity, four-year-old proportions, upright torso and compact LEVEL FEET DIRECTLY UNDER HIPS. Change ONLY clothing/backpack/shoes to orange outfit in image2. Image2 is clothing reference ONLY; ignore its running poses. Keep all new compact vertical jump poses in image1 exactly, 3 columns and 3 rows, same body scale per cell. Do not separate the legs or add diagonal running. Pure flat #FF00FF magenta background, clean empty gutters, no shadows/checkerboard/gridlines/text. High detail."
+    },
+    {
+      "name": "green",
+      "prompt": "Edit image1, a 3x3 nine-frame Adam sprite atlas. Preserve EXACT nine poses, their geometry and positions, face identity, four-year-old proportions, upright torso and compact LEVEL FEET DIRECTLY UNDER HIPS. Change ONLY clothing/backpack/shoes to green outfit in image2. Image2 is clothing reference ONLY; ignore its running poses. Keep all new compact vertical jump poses in image1 exactly, 3 columns and 3 rows, same body scale per cell. Do not separate the legs or add diagonal running. Pure flat #FF00FF magenta background, clean empty gutters, no shadows/checkerboard/gridlines/text. High detail."
+    },
+    {
+      "name": "purple",
+      "prompt": "Edit image1, a 3x3 nine-frame Adam sprite atlas. Preserve EXACT nine poses, their geometry and positions, face identity, four-year-old proportions, upright torso and compact LEVEL FEET DIRECTLY UNDER HIPS. Change ONLY clothing/backpack/shoes to purple outfit in image2. Image2 is clothing reference ONLY; ignore its running poses. Keep all new compact vertical jump poses in image1 exactly, 3 columns and 3 rows, same body scale per cell. Do not separate the legs or add diagonal running. Pure flat #FF00FF magenta background, clean empty gutters, no shadows/checkerboard/gridlines/text. High detail."
+    }
+  ]
+}
