@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.1 visual effects
+
+Surprise-race items use the hand-painted transparent atlas `assets/ui/surprise-items-v1.png`: chest, shield, ink bottle, sticky pod, spring and invisibility cloak. It preserves the storybook forest palette and remains readable in four-player TV splits. Collection, activation and impact show a short icon pulse; shield, boosted jumps and landing delays have distinct in-world markers.
+
+Ink now renders above the character as nine seeded organic splats distributed across a three-by-three screen field. Smooth irregular outlines, satellite drops and drips approximate 40% coverage without fixed edge bands. The seed changes for each hit and remains stable during the 1.8-second effect. Reduced-effects mode uses fewer contour points while retaining coverage. Each world also has subtle low-cost ambient motes, and every HUD card has a colored climb-progress rail plus the held item's painted icon.
+
 ## v0.7.3 character artwork
 
 Current character rendering uses four five-pose atlases under `assets/characters`, replacing the old two-row sheet. See [character implementation and measurements](design/CHARACTERS-073.md). Earlier asset descriptions below are historical.

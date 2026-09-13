@@ -4,6 +4,7 @@ const Model = preload("res://scripts/race_model.gd")
 const Stage = preload("res://scripts/stage.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
+const ITEM_ART = preload("res://assets/ui/surprise-items-v1.png")
 const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
 var world_art: Texture2D
 const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
@@ -64,6 +65,9 @@ var stages: Array = []
 var star_labels: Array = []
 var height_labels: Array = []
 var item_labels: Array = []
+var item_icons: Array = []
+var item_textures: Array[AtlasTexture] = []
+var progress_bars: Array = []
 var clock_label: Label
 var count_label: Label
 var perf_label: Label
@@ -93,6 +97,12 @@ func _ready() -> void:
 	updater = preload("res://scripts/updater.gd").new()
 	add_child(updater)
 	updater.changed.connect(func(): if state == "updates": show_updates())
+	for item in range(5):
+		var atlas := AtlasTexture.new()
+		atlas.atlas = ITEM_ART
+		var cell := item + 1
+		atlas.region = Rect2((cell % 3) * 256, (cell / 3) * 256, 256, 256)
+		item_textures.append(atlas)
 	var args := OS.get_cmdline_user_args()
 	tv = "--tv" in args or "--tv-device" in args
 	mobile = OS.get_name() in ["Android", "iOS"]
@@ -364,16 +374,31 @@ func build_hud() -> void:
 	star_labels.clear()
 	height_labels.clear()
 	item_labels.clear()
+	item_icons.clear()
+	progress_bars.clear()
 	for i in range(player_count):
 		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
 		box(hud, rect, Color(1, 0.99, 0.95, 0.95), Color("fff7df"), 22)
 		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(78, 46)), 20, Color("a06a20")))
 		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(85, 7), Vector2(maxf(90, rect.size.x - 95), 46)), 16))
+		var bar_width := rect.size.x - 40
+		box(hud, Rect2(rect.position + Vector2(20, 57), Vector2(bar_width, 6)), Color(0.09, 0.27, 0.27, 0.13), Color.TRANSPARENT, 3)
+		var progress_fill := box(hud, Rect2(rect.position + Vector2(20, 57), Vector2(1, 6)), [BLUE, ORANGE, Color("4a9c62"), Color("9968b4")][i], Color.TRANSPARENT, 3)
+		progress_bars.append({"fill": progress_fill, "width": bar_width})
 		if player_count > 1:
 			var player_tag := label(hud, "اللاعب %d" % (i + 1), Rect2(rect.position.x, rect.position.y + 64, rect.size.x * 0.48, 24), 16, Color("fff7dc"))
 			player_tag.add_theme_color_override("font_outline_color", [BLUE, ORANGE, Color("267342"), Color("8050a2")][i].darkened(0.45))
 			player_tag.add_theme_constant_override("outline_size", 4)
-			var item_label := label(hud, "", Rect2(rect.position.x + rect.size.x * 0.46, rect.position.y + 64, rect.size.x * 0.54, 24), 15, Color("fff7dc"))
+			var item_icon := TextureRect.new()
+			item_icon.position = Vector2(rect.position.x + rect.size.x * 0.54, rect.position.y + 62)
+			item_icon.size = Vector2(30, 30)
+			item_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			item_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			item_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			item_icon.visible = false
+			hud.add_child(item_icon)
+			item_icons.append(item_icon)
+			var item_label := label(hud, "", Rect2(rect.position.x + rect.size.x * 0.63, rect.position.y + 64, rect.size.x * 0.34, 24), 15, Color("fff7dc"))
 			item_label.add_theme_color_override("font_outline_color", Color("3d4f48"))
 			item_label.add_theme_constant_override("outline_size", 4)
 			item_label.visible = surprise_mode
@@ -435,9 +460,12 @@ func _physics_process(dt: float) -> void:
 		for i in range(player_count):
 			star_labels[i].text = "★ %d" % model.players[i].stars
 			height_labels[i].text = "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
+			progress_bars[i].fill.size.x = maxf(1.0, progress_bars[i].width * model.progress(i))
 			if surprise_mode and i < item_labels.size():
 				var held_item := int(model.players[i].inventory)
-				item_labels[i].text = ("A: " + Model.item_name(held_item)) if held_item >= 0 else "A: —"
+				item_labels[i].text = ("A  " + Model.item_name(held_item)) if held_item >= 0 else "A  —"
+				item_icons[i].visible = held_item >= 0
+				if held_item >= 0: item_icons[i].texture = item_textures[held_item]
 		if model.cooperative:
 			for i in range(player_count):
 				if model.players[i].finish >= 0: height_labels[i].text = "بانتظار رفيقك ♥"
@@ -458,15 +486,27 @@ func handle_game_events(events: Array[Dictionary]) -> void:
 				play_sound("star" if event.kind == "star" else "checkpoint")
 			"crumble": stages[event.player].crumble(event.position, event.width); play_sound("crumble")
 			"crack": play_sound("crack")
-			"power", "battle_box":
+			"power":
 				stages[event.player].burst(event.position)
+				play_sound("power")
+			"battle_box":
+				stages[event.player].burst(event.position)
+				stages[event.player].item_effect(event.item)
 				play_sound("power")
 			"checkpoint": play_sound("checkpoint"); save_journey()
 			"rescue": play_sound("rescue")
-			"bump", "trap", "item_hit":
+			"bump", "trap":
 				play_sound("crack")
 				if haptics and mobile and not tv: Input.vibrate_handheld(30, 0.35)
-			"shield_block", "item_used": play_sound("power")
+			"item_hit":
+				stages[event.player].item_effect(event.item)
+				play_sound("crack")
+			"shield_block":
+				stages[event.player].item_effect(Model.ITEM_SHIELD)
+				play_sound("power")
+			"item_used":
+				stages[event.player].item_effect(event.item)
+				play_sound("power")
 			"spring": play_sound("go")
 			"bounce":
 				if event.player == 0: play_sound("bounce" + str(model.world))

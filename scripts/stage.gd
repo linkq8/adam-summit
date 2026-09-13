@@ -1,6 +1,7 @@
 extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const ICONS = preload("res://assets/ui/game-icons.svg")
+const ITEMS = preload("res://assets/ui/surprise-items-v1.png")
 const Model = preload("res://scripts/race_model.gd")
 const KEY = preload("res://scripts/chroma.gdshader")
 const PLATFORM = preload("res://assets/platform-v2.png")
@@ -16,6 +17,7 @@ var hero: Sprite2D
 var sparkles: Array[Dictionary] = []
 var debris: Array[Dictionary] = []
 var marks: Node2D
+var screen_fx: Node2D
 var old_stars := 0
 var rescue_time := 0.0
 var terrain: Array[Sprite2D] = []
@@ -27,6 +29,11 @@ var branch_offsets: Array[Vector2] = []
 var old_frame := -1
 var old_row := -1
 var old_pack := -1
+var effect_kind := -1
+var effect_time := 0.0
+var ink_cache_seed := -1
+var ink_cache_height := -1
+var ink_shapes: Array[Dictionary] = []
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
@@ -56,6 +63,10 @@ func _ready() -> void:
 	Wardrobe.pose(hero, 0)
 	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, 138)
 	add_child(hero)
+	screen_fx = Node2D.new()
+	screen_fx.z_index = 4
+	screen_fx.draw.connect(draw_screen_effects)
+	add_child(screen_fx)
 
 func _process(dt: float) -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
@@ -101,7 +112,9 @@ func _process(dt: float) -> void:
 			piece.pos += piece.vel * dt
 			piece.vel.y += 420 * dt
 		debris = debris.filter(func(piece): return piece.life > 0)
+	effect_time = maxf(0.0, effect_time - dt)
 	marks.queue_redraw()
+	screen_fx.queue_redraw()
 	rescue_time = maxf(0, rescue_time - dt)
 	queue_redraw()
 
@@ -111,6 +124,10 @@ func burst(pos: Vector2) -> void:
 	for n in range(9):
 		var a := TAU * n / 9
 		sparkles.append({"pos": pos, "vel": Vector2(cos(a), sin(a)) * 85, "life": 0.55})
+
+func item_effect(kind: int) -> void:
+	effect_kind = kind
+	effect_time = 0.48 if not game.low_detail else 0.26
 
 func round_box(rect: Rect2, color: Color, radius: int = 12, border: Color = Color.TRANSPARENT) -> void:
 	var key := str(color) + str(border) + str(radius)
@@ -127,6 +144,11 @@ func round_box(rect: Rect2, color: Color, radius: int = 12, border: Color = Colo
 
 func icon(kind: int, at: Vector2, size: float, tint: Color = Color.WHITE) -> void:
 	draw_texture_rect_region(ICONS, Rect2(at - Vector2.ONE * size / 2, Vector2.ONE * size), Rect2(kind * 128, 0, 128, 128), tint)
+
+func atlas_item(canvas: CanvasItem, cell: int, at: Vector2, size: float, alpha: float = 1.0) -> void:
+	var column := cell % 3
+	var row := cell / 3
+	canvas.draw_texture_rect_region(ITEMS, Rect2(at - Vector2.ONE * size * 0.5, Vector2.ONE * size), Rect2(column * 256, row * 256, 256, 256), Color(1, 1, 1, alpha))
 
 func star(at: Vector2, radius: float, tint: Color = Color("ffce4c")) -> void:
 	icon(0, at, radius * 64.0 / 26.0, Color(1, 1, 1, tint.a))
@@ -154,6 +176,8 @@ func _draw() -> void:
 		var panel: int = model.world - (3 if model.world >= 3 else 1)
 		var source := Rect2(panel * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height() * 0.94)
 		draw_texture_rect_region(texture, Rect2(0, 0, 560, view_height), source)
+	if not game.low_detail:
+		draw_ambience(model.world, time, camera)
 	# A few slow clouds at high elevations; scene art remains visible underneath.
 	for k in range(0):
 		var cy := fposmod(k * 177.0 - camera * 0.15, 660.0) - 50
@@ -171,16 +195,16 @@ func _draw() -> void:
 				flower(Vector2(x - w * 0.3, y - 6), Color("fff6d4"))
 				flower(Vector2(x + w * 0.34, y - 5), Color("f6a9b7"))
 		if plat.spring:
-			for coil in range(3):
-				draw_arc(Vector2(x, y - 7 - coil * 6), 15 - coil * 2, 0.15, PI - 0.15, 16, Color("65c9df"), 3, true)
-			draw_line(Vector2(x - 20, y - 5), Vector2(x + 20, y - 5), Color("fff4a9"), 5, true)
+			draw_circle(Vector2(x, y - 22), 31, Color(0.38, 0.91, 0.94, 0.16))
+			atlas_item(self, 4, Vector2(x, y - 24), 62)
 		if plat.mud:
-			draw_ellipse(Vector2(x, y - 5), 78, 18, Color("75553f"), true)
-			draw_circle(Vector2(x - 17, y - 8), 6, Color("967052"))
+			draw_ellipse(Vector2(x, y - 5), 88, 21, Color("573f35"), true)
+			draw_ellipse(Vector2(x - 8, y - 8), 55, 10, Color("8f6a4e"), true)
+			for bubble in range(3):
+				draw_circle(Vector2(x - 24 + bubble * 24, y - 10 - bubble % 2 * 3), 4 + bubble, Color("b9906b"))
 		if plat.sticky:
-			for petal in range(6):
-				draw_circle(Vector2(x, y - 13) + Vector2.from_angle(petal * TAU / 6.0) * 10, 7, Color("e77b9c"))
-			draw_circle(Vector2(x, y - 13), 7, Color("8d4772"))
+			draw_circle(Vector2(x, y - 19), 27, Color(0.95, 0.33, 0.53, 0.14))
+			atlas_item(self, 3, Vector2(x, y - 22), 52)
 		if plat.moving:
 			draw_line(Vector2(x - 13, y + 23), Vector2(x + 13, y + 23), Color("ffdf90"), 2)
 			draw_line(Vector2(x - 13, y + 23), Vector2(x - 8, y + 19), Color("ffdf90"), 2)
@@ -211,10 +235,10 @@ func _draw() -> void:
 	if model.surprise_mode:
 		for box_id in range(Model.BOX_STEPS.size()):
 			if player.boxes_taken.has(box_id): continue
-			var at: Vector2 = model.box_position(box_id) - Vector2(0, camera)
+			var at: Vector2 = model.box_position(box_id) - Vector2(0, camera) + Vector2(0, sin(time * 2.1 + box_id) * 4)
 			if at.y < -45 or at.y > view_height + 45: continue
-			round_box(Rect2(at - Vector2(24, 24), Vector2(48, 48)), Color("efb94f"), 10, Color("fff0a7"))
-			draw_string(game.DISPLAY_FONT, at + Vector2(-15, 14), "?", HORIZONTAL_ALIGNMENT_CENTER, 30, 40, Color("594533"))
+			draw_circle(at, 39, Color(0.31, 0.93, 0.89, 0.13))
+			atlas_item(self, 0, at, 76)
 	for power in range(3):
 		if player.powers_taken.has(power): continue
 		var at: Vector2 = model.power_position(power) - Vector2(0, camera)
@@ -222,9 +246,20 @@ func _draw() -> void:
 		draw_power(at, power)
 		draw_string(game.FONT, at + Vector2(-52, -32), ["درع", "مغناطيس", "إنقاذ"][power], HORIZONTAL_ALIGNMENT_CENTER, 104, 25 if game.player_count >= 3 else 16, Color("fff9e7"))
 	var center: Vector2 = player.p - Vector2(0, camera + 50)
-	if player.shield > 0: draw_arc(center, 63, 0, TAU, 48, Color(0.55, 0.9, 1, 0.72), 3, true)
+	if player.shield > 0:
+		draw_circle(center, 61, Color(0.32, 0.84, 0.88, 0.08))
+		draw_arc(center, 61, -PI * 0.4, PI * 1.42, 48, Color(0.55, 0.94, 0.97, 0.82), 4, true)
+		atlas_item(self, 1, center + Vector2(45, -37), 34)
 	if player.bubble: draw_power(center + Vector2(48, 15), 2, 0.55)
 	if player.magnet > 0: draw_power(center + Vector2(-48, 15), 1, 0.55)
+	if player.boost_jumps > 0:
+		atlas_item(self, 4, center + Vector2(-47, 20), 43)
+	if player.pending_kind == "sticky" or player.hold_kind == "sticky":
+		atlas_item(self, 3, center + Vector2(0, 48), 45, 0.88)
+	elif player.hold_kind == "mud":
+		draw_ellipse(center + Vector2(0, 48), 74, 16, Color(0.25, 0.16, 0.12, 0.72), true)
+	elif player.hold_kind == "hit":
+		draw_arc(center + Vector2(0, 5), 69, -PI * 0.85, PI * 0.15, 24, Color("ef8a67"), 5, true)
 	if model.surprise_mode and player.inventory >= 0:
 		draw_item(center + Vector2(49, -12), int(player.inventory), 0.72)
 	for id in range(3):
@@ -244,6 +279,17 @@ func _draw() -> void:
 		cloud(pos + Vector2(-27, 5), 0.85, 0.88)
 	for s in sparkles:
 		star(s.pos - Vector2(0, camera), maxf(2, s.life * 10), Color(1, 0.82, 0.3, s.life / 0.55))
+
+func draw_ambience(world: int, time: float, camera: float) -> void:
+	var tints := [Color("ffe59a"), Color("e7f5ff"), Color("d8f5ff"), Color("ffd58f"), Color("70f5d4")]
+	var tint: Color = tints[world]
+	for mote in range(8):
+		var speed := 3.0 + world * 0.7 + mote % 3
+		var x := fposmod(43.0 + mote * 131.0 + time * speed * (1 if mote % 2 == 0 else -1), 600.0) - 20.0
+		var y := fposmod(31.0 + mote * 173.0 - camera * 0.075 + sin(time * 0.7 + mote) * 12.0, view_height + 80.0) - 40.0
+		var pulse := 0.55 + sin(time * 1.6 + mote * 1.9) * 0.18
+		draw_circle(Vector2(x, y), 7.0 + mote % 3, Color(tint, 0.045 * pulse))
+		draw_circle(Vector2(x, y), 1.8 + mote % 2, Color(tint, 0.48 * pulse))
 
 func crumble(at: Vector2, width: float) -> void:
 	if game.low_detail: return
@@ -273,15 +319,64 @@ func draw_platform_marks() -> void:
 	for piece in debris:
 		var at: Vector2 = piece.pos - Vector2(0, camera)
 		marks.draw_colored_polygon(PackedVector2Array([at + Vector2(-7, -4), at + Vector2(5, -6), at + Vector2(8, 3), at + Vector2(-2, 7)]), Color(0.87, 0.65, 0.42, piece.life / 0.55))
-	var player: Dictionary = model.players[index]
+
+func draw_screen_effects() -> void:
+	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size(): return
+	var player: Dictionary = game.model.players[index]
 	if player.ink > 0:
-		var alpha := minf(0.94, player.ink * 1.25)
-		marks.draw_rect(Rect2(0, 0, 112, view_height), Color(0.035, 0.06, 0.08, alpha))
-		marks.draw_rect(Rect2(448, 0, 112, view_height), Color(0.035, 0.06, 0.08, alpha))
-		for blot in range(8):
-			var by := 38.0 + blot * (view_height - 76.0) / 7.0
-			marks.draw_circle(Vector2(102 if blot % 2 == 0 else 18, by), 23 + (blot % 3) * 5, Color(0.02, 0.04, 0.055, alpha))
-			marks.draw_circle(Vector2(458 if blot % 2 == 0 else 542, by + 17), 20 + (blot % 4) * 4, Color(0.02, 0.04, 0.055, alpha))
+		if ink_cache_seed != int(player.ink_seed) or ink_cache_height != int(view_height):
+			build_ink_shapes(int(player.ink_seed))
+		var alpha := 0.94 * minf(1.0, player.ink / 0.24)
+		for shape in ink_shapes:
+			screen_fx.draw_colored_polygon(shape.points, Color(0.018, 0.035, 0.052, alpha))
+			screen_fx.draw_polyline(shape.outline, Color(0.02, 0.16, 0.21, alpha * 0.55), 2.0, true)
+			screen_fx.draw_circle(shape.highlight, shape.highlight_radius, Color(0.10, 0.27, 0.32, alpha * 0.32))
+			for satellite in shape.satellites:
+				screen_fx.draw_circle(satellite.position, satellite.radius, Color(0.018, 0.035, 0.052, alpha))
+			if shape.drip > 0:
+				screen_fx.draw_line(shape.drip_from, shape.drip_to, Color(0.018, 0.035, 0.052, alpha), shape.drip_width, true)
+				screen_fx.draw_circle(shape.drip_to, shape.drip_width * 0.7, Color(0.018, 0.035, 0.052, alpha))
+	if effect_time > 0 and effect_kind >= 0:
+		var camera := camera_for(player)
+		var at: Vector2 = player.p - Vector2(0, camera + 45)
+		var phase := 1.0 - effect_time / (0.26 if game.low_detail else 0.48)
+		var size := lerpf(62, 102, phase)
+		var alpha := sin(phase * PI) * 0.88
+		screen_fx.draw_circle(at, size * 0.43, Color(1, 0.89, 0.52, alpha * 0.18))
+		atlas_item(screen_fx, effect_kind + 1, at, size, alpha)
+
+func build_ink_shapes(seed: int) -> void:
+	ink_cache_seed = seed
+	ink_cache_height = int(view_height)
+	ink_shapes.clear()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = maxi(1, seed)
+	var base_radius := sqrt(560.0 * view_height * 0.36 / (9.0 * PI))
+	for cell in range(9):
+		var column := cell % 3
+		var row := cell / 3
+		var center := Vector2((column + rng.randf_range(0.23, 0.77)) * 560.0 / 3.0, (row + rng.randf_range(0.22, 0.78)) * view_height / 3.0)
+		var radius := base_radius * rng.randf_range(0.84, 1.13)
+		var points := PackedVector2Array()
+		var segments := 26 if not game.low_detail else 14
+		var phase_a := rng.randf_range(0, TAU)
+		var phase_b := rng.randf_range(0, TAU)
+		for point in range(segments):
+			var angle := TAU * point / float(segments)
+			var edge := radius * (0.94 + sin(angle * 3.0 + phase_a) * 0.11 + sin(angle * 5.0 + phase_b) * 0.07 + rng.randf_range(-0.025, 0.025))
+			points.append(center + Vector2.from_angle(angle) * edge)
+		var outline := points.duplicate()
+		outline.append(points[0])
+		var satellites := []
+		for dot in range(3 if not game.low_detail else 2):
+			var angle := rng.randf_range(0, TAU)
+			satellites.append({"position": center + Vector2.from_angle(angle) * radius * rng.randf_range(1.02, 1.34), "radius": radius * rng.randf_range(0.10, 0.20)})
+		var drip := rng.randf_range(0.0, 1.0)
+		ink_shapes.append({"points": points, "outline": outline, "satellites": satellites, "drip": drip,
+			"highlight": center - Vector2(radius * 0.23, radius * 0.28), "highlight_radius": radius * 0.075,
+			"drip_from": center + Vector2(radius * rng.randf_range(-0.45, 0.45), radius * 0.55),
+			"drip_to": center + Vector2(radius * rng.randf_range(-0.45, 0.45), radius * rng.randf_range(1.15, 1.65)),
+			"drip_width": rng.randf_range(5.0, 11.0)})
 
 func draw_creature(at: Vector2, world: int) -> void:
 	if world in [3, 4]:
@@ -313,19 +408,7 @@ func draw_power(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
 	icon(kind + 3, at, 64 * scale_factor)
 
 func draw_item(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
-	var colors := [Color("78cee7"), Color("263d4d"), Color("e66f91"), Color("f0b73f"), Color("9a83d7")]
-	draw_circle(at, 24 * scale_factor, Color("fff8df"))
-	draw_circle(at, 20 * scale_factor, colors[kind])
-	match kind:
-		Model.ITEM_SHIELD: draw_arc(at, 12 * scale_factor, 0, TAU, 24, Color.WHITE, 3 * scale_factor, true)
-		Model.ITEM_INK:
-			draw_circle(at, 9 * scale_factor, Color("111c24"))
-			draw_circle(at + Vector2(-7, -7) * scale_factor, 5 * scale_factor, Color("111c24"))
-		Model.ITEM_STICKY: draw_line(at + Vector2(-10, 8) * scale_factor, at + Vector2(10, -8) * scale_factor, Color.WHITE, 5 * scale_factor, true)
-		Model.ITEM_SPRING:
-			for y in [-8, 0, 8]: draw_arc(at + Vector2(0, y) * scale_factor, 9 * scale_factor, 0.2, PI - 0.2, 12, Color.WHITE, 2.5 * scale_factor, true)
-		Model.ITEM_INVISIBLE:
-			draw_arc(at, 11 * scale_factor, PI, TAU, 18, Color.WHITE, 3 * scale_factor, true)
+	atlas_item(self, kind + 1, at, 68 * scale_factor)
 
 func draw_finish(at: Vector2) -> void:
 	var world: int = game.model.world
@@ -365,6 +448,7 @@ func camera_for(p: Dictionary) -> float:
 
 func configure_terrain() -> void:
 	configured_model = game.model
+	ink_cache_seed = -1
 	offsets.clear(); branch_offsets.clear()
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]

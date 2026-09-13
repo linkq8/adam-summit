@@ -23,6 +23,9 @@ func land_on(model, player: int, platform: int) -> void:
 
 func _initialize() -> void:
 	check(Model.STEPS == 52, "Stages are 52 jumps long")
+	var item_texture: Texture2D = load("res://assets/ui/surprise-items-v1.png")
+	var item_art := item_texture.get_image()
+	check(not item_art.is_empty() and item_art.get_size() == Vector2i(768, 512) and item_art.detect_alpha() != Image.ALPHA_NONE, "Painted item atlas keeps transparent padding")
 	check(Model.BOX_STEPS[-1] <= Model.STEPS - 8, "Battle effects stop well before the summit")
 	var signatures := []
 	for stage in range(3):
@@ -39,8 +42,10 @@ func _initialize() -> void:
 	hazards.bump(rider)
 	check(rider.v == before_velocity, "Creature hit never changes descent speed")
 	check(is_equal_approx(rider.pending_delay, Model.ENEMY_LANDING_DELAY), "Creature delay is paid on next landing")
+	check(rider.pending_kind == "hit", "Creature delay has a distinct visual state")
 	land_on(hazards, 0, 1)
 	check(rider.hold > 0.35 and rider.v == Vector2.ZERO, "Creature causes a measured landing pause")
+	check(rider.hold_kind == "hit", "Landing pause preserves its visual cause")
 
 	var spring_course = Model.new(false, 1, 6, 1)
 	var spring_platform := -1
@@ -68,6 +73,7 @@ func _initialize() -> void:
 	duel.players[0].inventory = Model.ITEM_INK
 	duel.use_item(0)
 	check(is_equal_approx(duel.players[1].ink, Model.INK_DURATION), "Ink lasts 1.8 seconds")
+	check(duel.players[1].ink_seed != 0, "Every ink hit receives a stable random splatter seed")
 	duel.players[0].inventory = Model.ITEM_INVISIBLE
 	duel.use_item(0)
 	check(duel.players[0].inventory == Model.ITEM_INVISIBLE and duel.players[1].invisible == 0, "Attacks cannot stack during immunity")

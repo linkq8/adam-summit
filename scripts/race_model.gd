@@ -138,9 +138,9 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			"invulnerable": 0.0, "attack_immunity": 0.0,
 			"rescues": 0, "squash": 0.0, "stun": 0.0, "trail": [],
 			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0,
-			"pending_delay": 0.0, "boost_jumps": 0,
+			"hold_kind": "", "pending_delay": 0.0, "pending_kind": "", "boost_jumps": 0,
 			"ink": 0.0, "invisible": 0.0, "landing_flash": 0.0,
-			"inventory": -1
+			"ink_seed": 0, "inventory": -1
 		})
 		players[i].platform_hits.resize(STEPS + 1)
 		players[i].platform_hits.fill(0)
@@ -211,6 +211,7 @@ func _hold_on_platform(index: int, dt: float, events: Array[Dictionary]) -> void
 		p.v.y = -JUMP * float(p.pending_jump_scale)
 		p.pending_jump_scale = 1.0
 		p.hold_platform = -1
+		p.hold_kind = ""
 		p.squash = 1.0
 		events.append({"kind": "bounce", "player": index})
 
@@ -256,15 +257,20 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 			jump_scale = maxf(jump_scale, SPRING_JUMP_SCALE)
 			p.boost_jumps -= 1
 		var landing_delay := float(p.pending_delay)
+		var delay_kind := str(p.pending_kind)
 		p.pending_delay = 0.0
+		p.pending_kind = ""
 		if on_main and plat.mud:
+			if MUD_DELAY >= landing_delay: delay_kind = "mud"
 			landing_delay = maxf(landing_delay, MUD_DELAY)
 		if on_main and plat.sticky:
+			if STICKY_DELAY >= landing_delay: delay_kind = "sticky"
 			landing_delay = maxf(landing_delay, STICKY_DELAY)
 		if landing_delay > 0:
 			p.hold = landing_delay
 			p.hold_platform = j
 			p.pending_jump_scale = jump_scale
+			p.hold_kind = delay_kind
 			p.v = Vector2.ZERO
 			events.append({"kind": "trap", "player": index, "duration": landing_delay})
 		else:
@@ -364,6 +370,7 @@ func bump(p: Dictionary) -> bool:
 		return true
 	p.invulnerable = 1.8 if easy else 1.4
 	p.pending_delay = maxf(p.pending_delay, ENEMY_LANDING_DELAY)
+	p.pending_kind = "hit"
 	p.stun = maxf(p.stun, 0.16 if easy else 0.22)
 	return false
 
@@ -389,9 +396,11 @@ func use_item(index: int) -> Array[Dictionary]:
 		match item:
 			ITEM_INK:
 				target_player.ink = INK_DURATION
+				target_player.ink_seed = int(elapsed * 1000.0) + index * 7919 + target * 101 + level * 37
 				target_player.attack_immunity = INK_DURATION + ATTACK_GRACE
 			ITEM_STICKY:
 				target_player.pending_delay = maxf(target_player.pending_delay, STICKY_DELAY)
+				target_player.pending_kind = "sticky"
 				target_player.attack_immunity = 3.0
 			ITEM_INVISIBLE:
 				target_player.invisible = INVISIBLE_DURATION
@@ -452,7 +461,9 @@ func rescue(index: int) -> void:
 	p.invulnerable = 1.8
 	p.hold = 0.0
 	p.hold_platform = -1
+	p.hold_kind = ""
 	p.pending_delay = 0.0
+	p.pending_kind = ""
 	p.rescues += 1
 
 func progress(index: int) -> float:
