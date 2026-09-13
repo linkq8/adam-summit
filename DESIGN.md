@@ -1,5 +1,9 @@
 # Adam’s Summit design and implementation
 
+## v0.8.3 full-screen phones
+
+Phone layout now derives its canvas from the physical iOS or Android display and uses Godot's expand aspect mode. The former fixed 540×960 window override and aspect-fit mode could place the 9:16 canvas inside a visible rectangle on tall iPhones. Safe-area insets still reserve the Dynamic Island, sensor housing and home indicator while the background and playable field cover the complete display.
+
 ## v0.8.2 route choice and useful springs
 
 The second and third stages of most worlds now place raised gold alternate landings beside the broad main route. Their height, spacing and three alternating widths make them faster when executed cleanly, while the wider main route remains the safer choice. Gold double chevrons identify only routes verified to save time; unmarked side branches still reward exploration with stars. Route and spring simulations cover every chapter and difficulty.

@@ -121,13 +121,13 @@ func _ready() -> void:
 	else:
 		load_options()
 	apply_render_quality()
-	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	# Phones use their complete tall display instead of fitting the old 9:16
+	# design inside a letterboxed rectangle. TV keeps its exact 16:9 frame.
+	get_window().content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP if tv else Window.CONTENT_SCALE_ASPECT_EXPAND
 	if mobile:
 		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE if tv else DisplayServer.SCREEN_PORTRAIT)
 	elif tv:
 		get_window().size = Vector2i(1280, 720)
-	else:
-		get_window().size = Vector2i(540, 960)
 	player_count = 2 if tv and demo else 1
 	model = Model.new(difficulty == 0, player_count, level, difficulty)
 	ui = Control.new()
@@ -189,14 +189,23 @@ func schedule_layout() -> void:
 		layout_pending = true
 		layout_ui.call_deferred()
 
+static func canvas_for_pixels(pixels: Vector2, television: bool = false) -> Vector2:
+	if television:
+		return Vector2(1280, 720)
+	var aspect := pixels.x / maxf(pixels.y, 1.0)
+	return Vector2(maxf(540.0, 800.0 * aspect), maxf(800.0, 540.0 / aspect))
+
 func layout_ui() -> void:
 	drag_id = -1
 	layout_pending = false
 	apply_render_quality()
 	layout_pixels = get_window().size
 	var pixels := Vector2(layout_pixels)
-	var aspect := pixels.x / maxf(pixels.y, 1)
-	canvas_size = Vector2(1280, 720) if tv else Vector2(maxf(540, 800 * aspect), maxf(800, 540 / aspect))
+	if OS.get_name() in ["Android", "iOS"] and not tv:
+		var physical_screen := Vector2(DisplayServer.screen_get_size())
+		if physical_screen.x > 0 and physical_screen.y > 0:
+			pixels = physical_screen
+	canvas_size = canvas_for_pixels(pixels, tv)
 	get_window().content_scale_size = Vector2i(canvas_size * scale.x)
 	ui.size = canvas_size
 	modal.size = canvas_size

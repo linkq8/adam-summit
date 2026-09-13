@@ -23,6 +23,10 @@ func run() -> void:
 	root.add_child(game)
 	await process_frame
 	check(game.state == "lobby", "Starts in lobby")
+	check(ProjectSettings.get_setting("display/window/stretch/aspect", "") == "expand", "Project allows tall phone screens to expand")
+	check(game.get_window().content_scale_aspect == Window.CONTENT_SCALE_ASPECT_EXPAND, "Phone canvas does not use aspect-fit letterboxing")
+	var iphone_canvas: Vector2 = game.canvas_for_pixels(Vector2(1320, 2868), false)
+	check(absf(iphone_canvas.x / iphone_canvas.y - 1320.0 / 2868.0) < 0.001, "iPhone 16 Pro Max uses the complete screen aspect")
 	check(game.stages.size() == 4, "Two independently rendered race views")
 	game.tv = true
 	game.player_count = 2

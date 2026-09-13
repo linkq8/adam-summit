@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.8.2](https://github.com/linkq8/adam-summit/releases/tag/v0.8.2)**
+**[تحميل النسخة التجريبية 0.8.3](https://github.com/linkq8/adam-summit/releases/tag/v0.8.3)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
@@ -75,3 +75,5 @@ Version 0.8.1 replaces the fixed edge ink with seeded organic splats distributed
 
 
 Version 0.8.2 redraws the spring upright and calculates a useful two- or three-platform target for every stage. Raised gold alternate routes use unequal spacing and widths; double chevrons mark only routes verified to save time. The touch item action is sized for iOS/Android and appears only when a multiplayer surprise race has a valid opponent.
+
+Version 0.8.3 removes the fixed 540×960 phone window override and uses the physical iOS/Android display aspect with expand scaling. Tall phones and foldables now fill the complete screen while safe-area insets continue to protect the Dynamic Island, camera area and home indicator.
