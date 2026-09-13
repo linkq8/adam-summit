@@ -1,5 +1,9 @@
 # Adam’s Summit design and implementation
 
+## v0.8.4 seamless phone playfield
+
+The single-player phone playfield now spans the complete canvas width and leaves the full-screen scene background visible behind its platforms. Previously, the stage node repainted a differently cropped background inside its clipped 516-unit playfield, which formed the distinct rectangle visible in the iPhone screenshot. Multiplayer TV retains an independent background in each split-screen panel.
+
 ## v0.8.3 full-screen phones
 
 Phone layout now derives its canvas from the physical iOS or Android display and uses Godot's expand aspect mode. The former fixed 540×960 window override and aspect-fit mode could place the 9:16 canvas inside a visible rectangle on tall iPhones. Safe-area insets still reserve the Dynamic Island, sensor housing and home indicator while the background and playable field cover the complete display.

@@ -151,6 +151,9 @@ func atlas_item(canvas: CanvasItem, cell: int, at: Vector2, size: float, alpha: 
 	var row := cell / 3
 	canvas.draw_texture_rect_region(ITEMS, Rect2(at - Vector2.ONE * size * 0.5, Vector2.ONE * size), Rect2(column * 256, row * 256, 256, 256), Color(1, 1, 1, alpha))
 
+func draws_panel_background() -> bool:
+	return game != null and game.tv and game.player_count > 1
+
 func star(at: Vector2, radius: float, tint: Color = Color("ffce4c")) -> void:
 	icon(0, at, radius * 64.0 / 26.0, Color(1, 1, 1, tint.a))
 
@@ -170,13 +173,17 @@ func _draw() -> void:
 	var player: Dictionary = model.players[index]
 	var camera: float = camera_for(player)
 	var time: float = model.elapsed
-	if model.world == 0:
-		draw_texture_rect_region(BACKGROUND, Rect2(0, 0, 560, view_height), Rect2(0, 0, BACKGROUND.get_width(), BACKGROUND.get_height() * 0.72))
-	else:
-		var texture: Texture2D = EXTRA_BG if model.world >= 3 else WORLD_BG
-		var panel: int = model.world - (3 if model.world >= 3 else 1)
-		var source := Rect2(panel * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height() * 0.94)
-		draw_texture_rect_region(texture, Rect2(0, 0, 560, view_height), source)
+	# The main scene already paints a full-screen background. Repainting it inside
+	# the phone's clipped playfield created a visible inner rectangle. Split-screen
+	# TV panels still need their own background because each has separate bounds.
+	if draws_panel_background():
+		if model.world == 0:
+			draw_texture_rect_region(BACKGROUND, Rect2(0, 0, 560, view_height), Rect2(0, 0, BACKGROUND.get_width(), BACKGROUND.get_height() * 0.72))
+		else:
+			var texture: Texture2D = EXTRA_BG if model.world >= 3 else WORLD_BG
+			var panel: int = model.world - (3 if model.world >= 3 else 1)
+			var source := Rect2(panel * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height() * 0.94)
+			draw_texture_rect_region(texture, Rect2(0, 0, 560, view_height), source)
 	if not game.low_detail:
 		draw_ambience(model.world, time, camera)
 	# A few slow clouds at high elevations; scene art remains visible underneath.

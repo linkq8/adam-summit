@@ -224,8 +224,9 @@ func layout_ui() -> void:
 	var field_top := safe_top + 84
 	var field_bottom := safe_bottom + (18 if tv else 54)
 	for i in range(4):
-		var w := (canvas_size.x - 32 * (player_count + 1)) / player_count if tv and player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76)
-		var x := 32 + i * (w + 32) if tv and player_count > 1 else (canvas_size.x - w) / 2
+		var phone_view := not tv
+		var w := canvas_size.x if phone_view else ((canvas_size.x - 32 * (player_count + 1)) / player_count if player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76))
+		var x := 0.0 if phone_view else (32 + i * (w + 32) if player_count > 1 else (canvas_size.x - w) / 2)
 		views[i].position = Vector2(x, field_top)
 		views[i].size = Vector2(w, maxf(240, canvas_size.y - field_top - field_bottom))
 		stages[i].scale = Vector2.ONE * w / Model.WIDTH

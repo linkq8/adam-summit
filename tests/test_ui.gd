@@ -64,6 +64,8 @@ func run() -> void:
 	game.player_count = 2
 	game.start_race()
 	check(game.player_count == 1 and game.model.players.size() == 1, "Phones force single player")
+	check(is_zero_approx(game.views[0].position.x) and is_equal_approx(game.views[0].size.x, game.canvas_size.x), "Phone playfield reaches both screen edges")
+	check(not game.stages[0].draws_panel_background(), "Phone uses one seamless full-screen background")
 	game.countdown = 0.001
 	game._physics_process(1.0 / 60)
 	var location: Vector2 = game.model.players[0].p
@@ -161,6 +163,7 @@ func run() -> void:
 	check(game.model.players[0].shield > 0 and game.model.players[0].inventory < 0, "Touch item button activates the held item")
 	game.tv = true; game.player_count = 2; game.cooperative = true
 	game.start_race()
+	check(game.stages[0].draws_panel_background(), "TV split-screen keeps an independent background per player")
 	game.countdown = 0.001; game._physics_process(1.0 / 60)
 	game.model.players[0].finish = 10
 	game._physics_process(1.0 / 60)
