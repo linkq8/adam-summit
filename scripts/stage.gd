@@ -1,7 +1,7 @@
 extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const ICONS = preload("res://assets/ui/game-icons.svg")
-const ITEMS = preload("res://assets/ui/surprise-items-v1.png")
+const ITEMS = preload("res://assets/ui/surprise-items-v2.png")
 const Model = preload("res://scripts/race_model.gd")
 const KEY = preload("res://scripts/chroma.gdshader")
 const PLATFORM = preload("res://assets/platform-v2.png")
@@ -80,8 +80,9 @@ func _process(dt: float) -> void:
 		var on_screen := y > -90 and y < view_height + 90
 		terrain[i].visible = on_screen and game.model.platform_exists(index, i)
 		if terrain[i].visible: terrain[i].position = Vector2(game.model.platform_x(i), y) + offsets[i]
-		branches[i].visible = on_screen and plat.has("branch_x") and not p.branch_hits.has(i)
-		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, y) + branch_offsets[i]
+		var branch_y: float = float(plat.get("branch_y", plat.y)) - camera
+		branches[i].visible = branch_y > -90 and branch_y < view_height + 90 and plat.has("branch_x") and not p.branch_hits.has(i)
+		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, branch_y) + branch_offsets[i]
 	var frame := Wardrobe.jump_frame(p.v.y, p.squash)
 	if game.state in ["countdown", "paused"]: frame = 0
 	if game.state == "finish": frame = Wardrobe.VICTORY_FRAME
@@ -197,6 +198,7 @@ func _draw() -> void:
 		if plat.spring:
 			draw_circle(Vector2(x, y - 22), 31, Color(0.38, 0.91, 0.94, 0.16))
 			atlas_item(self, 4, Vector2(x, y - 24), 62)
+			draw_spring_guide(Vector2(x, y - 58), float(plat.spring_target_x) - x)
 		if plat.mud:
 			draw_ellipse(Vector2(x, y - 5), 88, 21, Color("573f35"), true)
 			draw_ellipse(Vector2(x - 8, y - 8), 55, 10, Color("8f6a4e"), true)
@@ -228,10 +230,12 @@ func _draw() -> void:
 			draw_finish(Vector2(x, y))
 		if plat.has("branch_x"):
 			var bx: float = plat.branch_x
+			var by: float = float(plat.get("branch_y", plat.y)) - camera
 			if not player.branch_hits.has(i):
-				draw_circle(Vector2(bx, y - 8), 5, Color("fff1bc"))
+				draw_circle(Vector2(bx, by - 8), 5, Color("fff1bc"))
+				if bool(plat.get("shortcut", false)): draw_shortcut_marker(Vector2(bx, by - 30))
 			if not player.branch_collected.has(i):
-				for bonus in range(3): star(Vector2(bx + (bonus - 1) * 17, y - 48 - (8 if bonus == 1 else 0)), 8)
+				for bonus in range(3): star(Vector2(bx + (bonus - 1) * 17, by - 48 - (8 if bonus == 1 else 0)), 8)
 	if model.surprise_mode:
 		for box_id in range(Model.BOX_STEPS.size()):
 			if player.boxes_taken.has(box_id): continue
@@ -290,6 +294,18 @@ func draw_ambience(world: int, time: float, camera: float) -> void:
 		var pulse := 0.55 + sin(time * 1.6 + mote * 1.9) * 0.18
 		draw_circle(Vector2(x, y), 7.0 + mote % 3, Color(tint, 0.045 * pulse))
 		draw_circle(Vector2(x, y), 1.8 + mote % 2, Color(tint, 0.48 * pulse))
+
+func draw_spring_guide(at: Vector2, horizontal_delta: float) -> void:
+	var lean := clampf(horizontal_delta / 220.0, -1.0, 1.0)
+	for step in range(3):
+		var center := at + Vector2(lean * step * 9.0, -step * 19.0)
+		var color := Color(1.0, 0.82, 0.32, 0.84 - step * 0.18)
+		draw_polyline(PackedVector2Array([center + Vector2(-8, 6), center, center + Vector2(8, 6)]), color, 3.0, true)
+
+func draw_shortcut_marker(at: Vector2) -> void:
+	for step in range(2):
+		var center := at + Vector2(0, -step * 12)
+		draw_polyline(PackedVector2Array([center + Vector2(-9, 7), center, center + Vector2(9, 7)]), Color("ffd96e"), 3.5, true)
 
 func crumble(at: Vector2, width: float) -> void:
 	if game.low_detail: return

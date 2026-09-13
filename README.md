@@ -2,13 +2,13 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.8.1](https://github.com/linkq8/adam-summit/releases/tag/v0.8.1)**
+**[تحميل النسخة التجريبية 0.8.2](https://github.com/linkq8/adam-summit/releases/tag/v0.8.2)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
 - التلفاز: من لاعب إلى أربعة لاعبين، سباق أو تعاون أو «سباق المفاجآت»، مع متابعة المراحل والعوالم.
 - كل مرحلة الآن 52 قفزة. مراحل العالم الثلاث تتدرج من الاستكشاف إلى التوقيت ثم قمة خاصة بالعالم.
-- زنبركات ومستنقعات وفخاخ لاصقة، مع تأخير اصطدام محسوب لا يسرّع السقوط.
+- زنبرك رأسي يحسب قفزته حسب المرحلة ويتجاوز منصة على الأقل، مع مستنقعات وفخاخ لاصقة وتأخير اصطدام محسوب.
 - في «سباق المفاجآت» لكل لاعب صناديق مستقلة وأداة واحدة: درع، حبر، لاصق، قفزتان مضاعفتان، أو إخفاء الخصم مؤقتًا.
 - اختيار مستقل للملابس والحقائب، وقائمة مصوّرة للعوالم.
 - القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
@@ -69,6 +69,9 @@ Version 0.7.5 uses seven compact jump poses plus idle/victory, with feet kept un
 
 Version 0.7.6 restores Adam’s natural likeness across all four outfits, retains the approved seven-phase jump, aligns the sole midpoint when facing either direction, and removes hats. [Art and validation](design/IDENTITY-V8.md).
 
-Version 0.8.0 extends every stage from 34 to 52 jumps and gives each three-stage world distinct pacing. Springs reach about double normal jump height; mud, sticky traps and creatures delay the next launch without altering descent speed. TV adds «سباق المفاجآت» for two to four players. Independent boxes provide a six-second one-hit shield, 1.8-second edge ink covering 40% while keeping the landing center visible, a 0.4-second sticky delay, two boosted jumps, or a 1.2-second invisibility penalty. Attacks target the nearest racer ahead, do not stack, and boxes end well before the summit.
+Version 0.8.0 extends every stage from 34 to 52 jumps and gives each three-stage world distinct pacing. Springs use a stage-specific launch profile; mud, sticky traps and creatures delay the next launch without altering descent speed. TV adds «سباق المفاجآت» for two to four players. Independent boxes provide a six-second one-hit shield, 1.8-second seeded ink splats covering about 40% of the playfield, a 0.4-second sticky delay, two boosted jumps, or a 1.2-second invisibility penalty. Attacks target the nearest racer ahead, do not stack, and boxes end well before the summit.
 
 Version 0.8.1 replaces the fixed edge ink with seeded organic splats distributed randomly across the playfield at about 40% coverage. A new hand-painted transparent atlas supplies the chest, shield, ink, sticky trap, spring and invisibility art. Pickup/use/hit pulses, visible shield and delay states, slim HUD progress rails, held-item icons and subtle world-colored atmosphere complete the visual pass. Reduced-effects mode keeps a cheaper contour variant.
+
+
+Version 0.8.2 redraws the spring upright and calculates a useful two- or three-platform target for every stage. Raised gold alternate routes use unequal spacing and widths; double chevrons mark only routes verified to save time. The touch item action is sized for iOS/Android and appears only when a multiplayer surprise race has a valid opponent.

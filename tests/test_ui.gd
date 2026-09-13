@@ -142,6 +142,19 @@ func run() -> void:
 	var migrated: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(game.storage_path))
 	check(not migrated.has("hat") and not migrated.has("player_hats"), "Obsolete hats disappear on next save")
 	check(game.costume == 2 and game.backpack == 1 and game.records == legacy.records, "Removing hats preserves wardrobe and progress")
+	game.tv = false; game.mobile = true; game.player_count = 2; game.surprise_mode = true
+	game.model = game.Model.new(false, 2, 0, 1); game.model.surprise_mode = true; game.state = "racing"
+	game.build_hud()
+	check(is_instance_valid(game.touch_item_button) and game.touch_item_button.size.x >= 44 and game.touch_item_button.size.y >= 44, "Mobile multiplayer gets an accessible item button")
+	game.model.players[0].inventory = game.Model.ITEM_SHIELD
+	game._physics_process(0.11)
+	check(not game.touch_item_button.disabled and game.touch_item_button.icon != null, "Touch item button shows the held item")
+	var item_touch := InputEventScreenTouch.new()
+	item_touch.index = 7; item_touch.pressed = true; item_touch.position = game.touch_item_button.position + game.touch_item_button.size * 0.5
+	game._input(item_touch)
+	check(game.drag_id == -1, "Item-button touch never steals the steering gesture")
+	game.touch_item_button.pressed.emit()
+	check(game.model.players[0].shield > 0 and game.model.players[0].inventory < 0, "Touch item button activates the held item")
 	game.tv = true; game.player_count = 2; game.cooperative = true
 	game.start_race()
 	game.countdown = 0.001; game._physics_process(1.0 / 60)

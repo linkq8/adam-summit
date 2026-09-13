@@ -1,8 +1,16 @@
 # Adam’s Summit design and implementation
 
+## v0.8.2 route choice and useful springs
+
+The second and third stages of most worlds now place raised gold alternate landings beside the broad main route. Their height, spacing and three alternating widths make them faster when executed cleanly, while the wider main route remains the safer choice. Gold double chevrons identify only routes verified to save time; unmarked side branches still reward exploration with stars. Route and spring simulations cover every chapter and difficulty.
+
+Spring launch speed is calculated from the current landing and a reachable target two or three platforms above. Each stage therefore uses a different launch height rather than the former global multiplier. The launch target can be a raised shortcut when it is reachable, and the control model keeps that target through the jump. Tests compare each chapter against ordinary jumps and require a material time saving. The spring artwork is upright in `assets/ui/surprise-items-v2.png`, with a horizontal base and vertical coil; subtle gold chevrons indicate its intended direction.
+
+Touch platforms have a 86×76 action button for surprise multiplayer. It displays the held painted item, stays disabled while inventory is empty, does not capture the steering drag, and triggers the same balanced item logic as controller A. It is omitted from single-player because attack items have no valid opponent. Phone and tablet play otherwise remain single-player as previously specified.
+
 ## v0.8.1 visual effects
 
-Surprise-race items use the hand-painted transparent atlas `assets/ui/surprise-items-v1.png`: chest, shield, ink bottle, sticky pod, spring and invisibility cloak. It preserves the storybook forest palette and remains readable in four-player TV splits. Collection, activation and impact show a short icon pulse; shield, boosted jumps and landing delays have distinct in-world markers.
+Surprise-race items use the hand-painted transparent atlas `assets/ui/surprise-items-v2.png`: chest, shield, ink bottle, sticky pod, upright spring and invisibility cloak. It preserves the storybook forest palette and remains readable in four-player TV splits. Collection, activation and impact show a short icon pulse; shield, boosted jumps and landing delays have distinct in-world markers.
 
 Ink now renders above the character as nine seeded organic splats distributed across a three-by-three screen field. Smooth irregular outlines, satellite drops and drips approximate 40% coverage without fixed edge bands. The seed changes for each hit and remains stable during the 1.8-second effect. Reduced-effects mode uses fewer contour points while retaining coverage. Each world also has subtle low-cost ambient motes, and every HUD card has a colored climb-progress rail plus the held item's painted icon.
 

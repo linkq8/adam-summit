@@ -4,7 +4,7 @@ const Model = preload("res://scripts/race_model.gd")
 const Stage = preload("res://scripts/stage.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
-const ITEM_ART = preload("res://assets/ui/surprise-items-v1.png")
+const ITEM_ART = preload("res://assets/ui/surprise-items-v2.png")
 const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
 var world_art: Texture2D
 const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
@@ -66,6 +66,7 @@ var star_labels: Array = []
 var height_labels: Array = []
 var item_labels: Array = []
 var item_icons: Array = []
+var touch_item_button: Button
 var item_textures: Array[AtlasTexture] = []
 var progress_bars: Array = []
 var clock_label: Label
@@ -363,7 +364,7 @@ func show_tutorial() -> void:
 	label(modal, "←                    →", Rect2(r.position + Vector2(20, 295), Vector2(r.size.x - 40, 65)), 43, BLUE)
 	var tv_help := "القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة"
 	if surprise_mode:
-		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يغطي الأطراف وتبقى منطقة الهبوط واضحة"
+		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يظهر كلطخات عشوائية على شاشة المنافس"
 	label(modal, (tv_help if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
 	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
 	help_time = 0
@@ -375,6 +376,7 @@ func build_hud() -> void:
 	height_labels.clear()
 	item_labels.clear()
 	item_icons.clear()
+	touch_item_button = null
 	progress_bars.clear()
 	for i in range(player_count):
 		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
@@ -410,8 +412,15 @@ func build_hud() -> void:
 	perf_label = label(hud, "", Rect2(5, safe_top + 70, canvas_size.x - 10, 30), 12)
 	perf_label.visible = showing_perf
 	if not tv:
-		box(hud, Rect2(20, canvas_size.y - safe_bottom - 46, canvas_size.x - 40, 44), Color(1, 0.98, 0.92, 0.95), Color.TRANSPARENT, 18)
-		guide_label = label(hud, "اسحب للتحرّك • المسار الذهبي يمنح نجومًا أكثر", Rect2(25, canvas_size.y - safe_bottom - 46, canvas_size.x - 50, 44), 17)
+		var has_touch_action := mobile and surprise_mode and player_count > 1
+		var guide_width := canvas_size.x - (136 if has_touch_action else 40)
+		box(hud, Rect2(20, canvas_size.y - safe_bottom - 46, guide_width, 44), Color(1, 0.98, 0.92, 0.95), Color.TRANSPARENT, 18)
+		guide_label = label(hud, "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع", Rect2(25, canvas_size.y - safe_bottom - 46, guide_width - 10, 44), 17)
+		if has_touch_action:
+			touch_item_button = button(hud, "أداة", Rect2(canvas_size.x - 106, canvas_size.y - safe_bottom - 78, 86, 76), use_touch_item, true)
+			touch_item_button.add_theme_font_size_override("font_size", 17)
+			touch_item_button.expand_icon = true
+			touch_item_button.disabled = true
 	hud.visible = state in ["countdown", "racing", "paused", "finish"]
 
 func start_race() -> void:
@@ -466,6 +475,11 @@ func _physics_process(dt: float) -> void:
 				item_labels[i].text = ("A  " + Model.item_name(held_item)) if held_item >= 0 else "A  —"
 				item_icons[i].visible = held_item >= 0
 				if held_item >= 0: item_icons[i].texture = item_textures[held_item]
+		if is_instance_valid(touch_item_button):
+			var touch_item := int(model.players[0].inventory)
+			touch_item_button.disabled = touch_item < 0
+			touch_item_button.text = Model.item_name(touch_item) if touch_item >= 0 else "أداة"
+			touch_item_button.icon = item_textures[touch_item] if touch_item >= 0 else null
 		if model.cooperative:
 			for i in range(player_count):
 				if model.players[i].finish >= 0: height_labels[i].text = "بانتظار رفيقك ♥"
@@ -475,7 +489,7 @@ func _physics_process(dt: float) -> void:
 			if p.shield > 0: abilities += "درع %dث  " % ceili(p.shield)
 			if p.magnet > 0: abilities += "مغناطيس %dث  " % ceili(p.magnet)
 			if p.bubble: abilities += "فقاعة إنقاذ ✓"
-			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • المسار الذهبي: نجوم أكثر")
+			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
 
 func handle_game_events(events: Array[Dictionary]) -> void:
@@ -511,6 +525,13 @@ func handle_game_events(events: Array[Dictionary]) -> void:
 			"bounce":
 				if event.player == 0: play_sound("bounce" + str(model.world))
 
+func use_touch_item() -> void:
+	if state != "racing" or not model.surprise_mode or player_count <= 1:
+		return
+	handle_game_events(model.use_item(0))
+	if haptics and mobile:
+		Input.vibrate_handheld(22, 0.28)
+
 func read_directions():
 	var result := [touch_directions.x, touch_directions.y, 0.0, 0.0]
 	if not tv and drag_id != -1: result[0] = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
@@ -541,7 +562,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey: held_keys[event.physical_keycode if event.physical_keycode != 0 else event.keycode] = event.pressed
 	if not tv and state == "racing":
 		if event is InputEventScreenTouch:
-			if event.pressed and drag_id == -1 and event.position.y > safe_top + 84:
+			var on_item_button := is_instance_valid(touch_item_button) and touch_item_button.visible and Rect2(touch_item_button.position, touch_item_button.size).has_point(event.position)
+			if event.pressed and drag_id == -1 and event.position.y > safe_top + 84 and not on_item_button:
 				drag_id = event.index
 				drag_target = model.players[0].p.x
 				get_viewport().set_input_as_handled()

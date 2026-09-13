@@ -21,9 +21,31 @@ func land_on(model, player: int, platform: int) -> void:
 	rider.camera = minf(0, rider.p.y - 345)
 	model.step(1.0 / 60, [0.0, 0.0, 0.0, 0.0].slice(0, model.player_count))
 
+func time_to_platform(model, target: int) -> float:
+	var started: float = model.elapsed
+	for tick in range(900):
+		model.step(1.0 / 60, Vector2(model.autopilot(0), 0))
+		if model.players[0].highest >= target:
+			return model.elapsed - started
+	return 99.0
+
+func route_finish_time(chapter: int, shortcut_route: bool) -> float:
+	var course = Model.new(false, 1, chapter, 1)
+	var rider: Dictionary = course.players[0]
+	for tick in range(10800):
+		var launched: bool = int(rider.launch_target) > rider.landed
+		var target: int = int(rider.launch_target) if launched else mini(Model.STEPS, rider.landed + 1)
+		var target_x: float = float(rider.launch_target_x) if launched else course.platform_x(target, course.elapsed + 0.2)
+		if shortcut_route and not launched and course.platforms[target].has("branch_x"):
+			target_x = float(course.platforms[target].branch_x)
+		course.step(1.0 / 60, Vector2(clampf((target_x - rider.p.x) / 35.0, -1.0, 1.0), 0))
+		if rider.finish >= 0:
+			return rider.finish
+	return 999.0
+
 func _initialize() -> void:
 	check(Model.STEPS == 52, "Stages are 52 jumps long")
-	var item_texture: Texture2D = load("res://assets/ui/surprise-items-v1.png")
+	var item_texture: Texture2D = load("res://assets/ui/surprise-items-v2.png")
 	var item_art := item_texture.get_image()
 	check(not item_art.is_empty() and item_art.get_size() == Vector2i(768, 512) and item_art.detect_alpha() != Image.ALPHA_NONE, "Painted item atlas keeps transparent padding")
 	check(Model.BOX_STEPS[-1] <= Model.STEPS - 8, "Battle effects stop well before the summit")
@@ -55,7 +77,43 @@ func _initialize() -> void:
 			break
 	check(spring_platform > 0, "Environmental spring generated")
 	land_on(spring_course, 0, spring_platform)
-	check(is_equal_approx(spring_course.players[0].v.y, -Model.JUMP * Model.SPRING_JUMP_SCALE), "Environmental spring reaches about double normal height")
+	var spring_profile: Dictionary = spring_course.spring_profile(spring_platform)
+	check(spring_profile.target >= spring_platform + 2, "Environmental spring aims at least two platforms higher")
+	check(is_equal_approx(spring_course.players[0].v.y, -Model.JUMP * float(spring_profile.scale)), "Environmental spring uses the stage-specific launch height")
+	check(spring_course.players[0].launch_target == spring_profile.target, "Spring communicates its useful landing target")
+	var spring_time := time_to_platform(spring_course, int(spring_profile.target))
+	var normal_course = Model.new(false, 1, 6, 1)
+	normal_course.platforms[spring_platform].spring = false
+	land_on(normal_course, 0, spring_platform)
+	var normal_time := time_to_platform(normal_course, int(spring_profile.target))
+	check(spring_time + 0.20 < normal_time, "A well-aimed spring reaches its target materially faster than normal jumps")
+	var shortcut_course = Model.new(false, 1, 2, 1)
+	var shortcut: Dictionary = shortcut_course.platforms[Model.FORK_STARTS[0]]
+	check(shortcut.shortcut and shortcut.branch_y < shortcut.y, "Finale stage offers a raised faster route")
+	check(shortcut.branch_w < shortcut.w, "Faster route trades landing width for speed")
+	var introduction_course = Model.new(false, 1, 0, 1)
+	check(not introduction_course.platforms[Model.FORK_STARTS[0]].shortcut, "First stage introduces route choice without a speed penalty")
+	var tailored_scales := {}
+	for chapter in range(15):
+		var tailored = Model.new(false, 1, chapter, 1)
+		var tailored_profile: Dictionary = tailored.spring_profile(17)
+		check(tailored_profile.target >= 19, "Spring item skips a platform in chapter %d" % chapter)
+		tailored_scales[snappedf(float(tailored_profile.scale), 0.01)] = true
+		tailored.players[0].boost_jumps = 1
+		land_on(tailored, 0, 17)
+		var tailored_time := time_to_platform(tailored, int(tailored_profile.target))
+		var ordinary = Model.new(false, 1, chapter, 1)
+		ordinary.platforms[17].spring = false
+		land_on(ordinary, 0, 17)
+		var ordinary_time := time_to_platform(ordinary, int(tailored_profile.target))
+		check(tailored_time + 0.20 < ordinary_time, "Spring saves measurable time in chapter %d" % chapter)
+	check(tailored_scales.size() >= 3, "Spring heights adapt to the geometry of different stages")
+	for chapter in range(15):
+		var route_sample = Model.new(false, 1, chapter, 1)
+		if bool(route_sample.platforms[Model.FORK_STARTS[0]].shortcut):
+			var main_time := route_finish_time(chapter, false)
+			var shortcut_time := route_finish_time(chapter, true)
+			check(shortcut_time + 0.05 < main_time, "Marked shortcut is measurably faster in chapter %d" % chapter)
 
 	var battle = Model.new(false, 4, 4, 1)
 	battle.surprise_mode = true

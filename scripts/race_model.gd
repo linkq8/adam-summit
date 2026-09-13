@@ -10,7 +10,7 @@ const GRAVITY := 1750.0
 const JUMP := 710.0
 const SPEED := 310.0
 const FINISH_Y := START_Y - STEPS * GAP
-const SPRING_JUMP_SCALE := 1.414
+const SPRING_CLEARANCE := [26.0, 34.0, 42.0]
 const MUD_DELAY := 0.55
 const STICKY_DELAY := 0.40
 const ENEMY_LANDING_DELAY := 0.40
@@ -78,14 +78,21 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			_clear_platform_hazards(plat)
 			plat.durability = capacity
 	for start in FORK_STARTS:
-		var side := 70.0 if platforms[start - 1].x < 280 else 490.0
+		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
+		var side := shortcut_edge if platforms[start - 1].x < 280 else WIDTH - shortcut_edge
+		var shortcut_lift: float = [0.0, 28.0, 40.0][stage_kind]
+		if level == 10:
+			shortcut_lift = 0.0
 		platforms[start + 3].x = 280.0
 		platforms[start + 3].w = maxf(215, platforms[start + 3].w)
 		_clear_platform_hazards(platforms[start + 3])
 		for j in range(start, start + 3):
 			platforms[j]["branch_x"] = side
+			platforms[j]["branch_y"] = platforms[j].y - shortcut_lift * [0.78, 1.0, 1.16][j - start]
+			platforms[j]["shortcut"] = shortcut_lift > 0
 			platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
-			platforms[j]["branch_w"] = 116.0 if easy else 92.0
+			var branch_base: float = [132.0, 112.0, 96.0][difficulty]
+			platforms[j]["branch_w"] = branch_base * [1.0, 0.82, 1.12][j - start]
 			platforms[j].w = maxf(platforms[j].w, 215.0 if easy else 185.0)
 			_clear_platform_hazards(platforms[j])
 	if stage_kind == 2:
@@ -120,13 +127,15 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			plat.w = 150.0
 			_clear_platform_hazards(plat)
 	for start in FORK_STARTS:
-		var side := 70.0 if platforms[start - 1].x < 280 else 490.0
+		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
+		var side := shortcut_edge if platforms[start - 1].x < 280 else WIDTH - shortcut_edge
 		for j in range(start, start + 3):
 			if platforms[j].has("branch_x"):
 				platforms[j].branch_x = side
 				platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
 	platforms[STEPS].x = 280.0
 	platforms[STEPS].w = 300.0
+	_configure_spring_profiles()
 	for i in range(player_count):
 		players.append({
 			"p": Vector2(280, START_Y), "v": Vector2.ZERO,
@@ -137,8 +146,9 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			"camera": 0.0, "finish": -1.0, "face": 1.0,
 			"invulnerable": 0.0, "attack_immunity": 0.0,
 			"rescues": 0, "squash": 0.0, "stun": 0.0, "trail": [],
-			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0,
+			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0, "pending_jump_target": -1, "pending_jump_target_x": 280.0,
 			"hold_kind": "", "pending_delay": 0.0, "pending_kind": "", "boost_jumps": 0,
+			"launch_target": -1, "launch_target_x": 280.0,
 			"ink": 0.0, "invisible": 0.0, "landing_flash": 0.0,
 			"ink_seed": 0, "inventory": -1
 		})
@@ -153,6 +163,44 @@ func _clear_platform_hazards(plat: Dictionary) -> void:
 	plat.sticky = false
 	plat.enemy = false
 	plat.orb = false
+
+func _configure_spring_profiles() -> void:
+	for from_index in range(STEPS):
+		var profile := spring_profile(from_index)
+		platforms[from_index]["spring_target"] = profile.target
+		platforms[from_index]["spring_scale"] = profile.scale
+		platforms[from_index]["spring_target_x"] = profile.target_x
+		platforms[from_index]["spring_target_y"] = profile.target_y
+
+func spring_profile(from_index: int, launch_y: float = INF, launch_x: float = INF) -> Dictionary:
+	var start := clampi(from_index, 0, STEPS - 1)
+	var source_y: float = platforms[start].y if is_inf(launch_y) else launch_y
+	var source_x: float = platform_x(start, 0.0) if is_inf(launch_x) else launch_x
+	var preferred_advance: int = [2, 2, 3][level % 3]
+	for advance in range(preferred_advance, 1, -1):
+		var target := mini(STEPS, start + advance)
+		if target <= start + 1:
+			continue
+		var surfaces := []
+		if bool(platforms[target].get("shortcut", false)):
+			surfaces.append({"x": float(platforms[target].branch_x), "y": float(platforms[target].branch_y), "w": float(platforms[target].branch_w), "shortcut": true})
+		surfaces.append({"x": platform_x(target, 0.0), "y": float(platforms[target].y), "w": float(platforms[target].w), "shortcut": false})
+		for surface in surfaces:
+			var rise: float = source_y - float(surface.y)
+			var scale := sqrt(2.0 * GRAVITY * (rise + SPRING_CLEARANCE[level % 3])) / JUMP
+			var launch_speed := JUMP * scale
+			var discriminant := maxf(0.0, launch_speed * launch_speed - 2.0 * GRAVITY * rise)
+			var flight_time := (launch_speed + sqrt(discriminant)) / GRAVITY
+			var horizontal_gap := absf(float(surface.x) - source_x)
+			var landing_allowance := float(surface.w) * 0.5 + 13.0
+			if horizontal_gap <= SPEED * flight_time * 0.88 + landing_allowance:
+				return {"target": target, "target_x": surface.x, "target_y": surface.y, "shortcut": surface.shortcut,
+					"scale": clampf(scale, 1.16, 1.58), "flight_time": flight_time}
+	var fallback := mini(STEPS, start + 2)
+	var fallback_rise: float = source_y - platforms[fallback].y
+	var fallback_scale := sqrt(2.0 * GRAVITY * (fallback_rise + SPRING_CLEARANCE[level % 3])) / JUMP
+	return {"target": fallback, "target_x": platform_x(fallback, 0.0), "target_y": platforms[fallback].y, "shortcut": false,
+		"scale": clampf(fallback_scale, 1.16, 1.58), "flight_time": 0.0}
 
 func remaining_jumps(index: int, platform: int) -> int:
 	var capacity: int = platforms[platform].durability
@@ -209,7 +257,10 @@ func _hold_on_platform(index: int, dt: float, events: Array[Dictionary]) -> void
 	p.v = Vector2.ZERO
 	if p.hold <= 0:
 		p.v.y = -JUMP * float(p.pending_jump_scale)
+		p.launch_target = int(p.pending_jump_target)
+		p.launch_target_x = float(p.pending_jump_target_x)
 		p.pending_jump_scale = 1.0
+		p.pending_jump_target = -1
 		p.hold_platform = -1
 		p.hold_kind = ""
 		p.squash = 1.0
@@ -219,21 +270,27 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 	var p: Dictionary = players[index]
 	for j in range(STEPS, -1, -1):
 		var plat: Dictionary = platforms[j]
-		if previous.y > plat.y + 0.01 or p.p.y < plat.y:
-			continue
-		var fraction := clampf((plat.y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1)
-		var contact_x := lerpf(previous.x, p.p.x, fraction)
-		var platform_contact := platform_x(j, elapsed - dt + fraction * dt)
-		var on_main: bool = platform_exists(index, j) and absf(contact_x - platform_contact) <= plat.w * 0.5 + 13
-		var on_branch: bool = not on_main and plat.has("branch_x") and not p.branch_hits.has(j) and absf(contact_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + 13
+		var main_crossed: bool = previous.y <= plat.y + 0.01 and p.p.y >= plat.y
+		var main_fraction := clampf((plat.y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if main_crossed else 2.0
+		var main_x := lerpf(previous.x, p.p.x, main_fraction) if main_crossed else -999.0
+		var platform_contact := platform_x(j, elapsed - dt + main_fraction * dt) if main_crossed else platform_x(j)
+		var on_main: bool = main_crossed and platform_exists(index, j) and absf(main_x - platform_contact) <= plat.w * 0.5 + 13
+		var branch_y: float = float(plat.get("branch_y", plat.y))
+		var branch_crossed: bool = plat.has("branch_x") and previous.y <= branch_y + 0.01 and p.p.y >= branch_y
+		var branch_fraction := clampf((branch_y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if branch_crossed else 2.0
+		var branch_x := lerpf(previous.x, p.p.x, branch_fraction) if branch_crossed else -999.0
+		var on_branch: bool = not on_main and branch_crossed and not p.branch_hits.has(j) and absf(branch_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + 13
 		if not on_main and not on_branch:
 			continue
-		p.p.y = plat.y
+		var fraction: float = main_fraction if on_main else branch_fraction
+		var landing_y: float = plat.y if on_main else branch_y
+		p.p.y = landing_y
+		p.launch_target = -1
 		if p.invisible > 0:
 			p.landing_flash = 0.14
 		if on_branch:
 			p.branch_hits[j] = true
-			events.append({"kind": "crumble", "player": index, "position": Vector2(plat.branch_x, plat.y), "width": plat.branch_w})
+			events.append({"kind": "crumble", "player": index, "position": Vector2(plat.branch_x, branch_y), "width": plat.branch_w})
 		if on_main and plat.durability > 0:
 			p.platform_hits[j] += 1
 			events.append({"kind": "crumble" if not platform_exists(index, j) else "crack", "player": index, "position": Vector2(platform_contact, plat.y), "width": plat.w})
@@ -252,9 +309,16 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 			p.v = Vector2.ZERO
 			events.append({"kind": "finish", "player": index})
 			return
-		var jump_scale := SPRING_JUMP_SCALE if on_main and plat.spring else 1.0
+		var spring_launch: bool = on_main and plat.spring
+		var jump_profile := spring_profile(j, landing_y, p.p.x)
+		var jump_scale := float(jump_profile.scale) if spring_launch else 1.0
+		var jump_target := int(jump_profile.target) if spring_launch else -1
+		var jump_target_x := float(jump_profile.target_x) if spring_launch else platform_contact
 		if p.boost_jumps > 0:
-			jump_scale = maxf(jump_scale, SPRING_JUMP_SCALE)
+			jump_scale = maxf(jump_scale, float(jump_profile.scale))
+			jump_target = int(jump_profile.target)
+			jump_target_x = float(jump_profile.target_x)
+			spring_launch = true
 			p.boost_jumps -= 1
 		var landing_delay := float(p.pending_delay)
 		var delay_kind := str(p.pending_kind)
@@ -270,12 +334,16 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 			p.hold = landing_delay
 			p.hold_platform = j
 			p.pending_jump_scale = jump_scale
+			p.pending_jump_target = jump_target
+			p.pending_jump_target_x = jump_target_x
 			p.hold_kind = delay_kind
 			p.v = Vector2.ZERO
 			events.append({"kind": "trap", "player": index, "duration": landing_delay})
 		else:
 			p.v.y = -JUMP * jump_scale
-			events.append({"kind": "spring" if jump_scale > 1.1 else "bounce", "player": index})
+			p.launch_target = jump_target
+			p.launch_target_x = jump_target_x
+			events.append({"kind": "spring" if spring_launch else "bounce", "player": index, "target": jump_target})
 		return
 
 func _collect_stage_objects(index: int, events: Array[Dictionary]) -> void:
@@ -301,7 +369,7 @@ func _collect_stage_objects(index: int, events: Array[Dictionary]) -> void:
 	for j in range(maxi(1, p.highest - 3), mini(STEPS, p.highest + 4)):
 		var plat: Dictionary = platforms[j]
 		if plat.has("branch_x") and not p.branch_collected.has(j):
-			var bonus := Vector2(plat.branch_x, plat.y - 48)
+			var bonus := Vector2(plat.branch_x, float(plat.get("branch_y", plat.y)) - 48)
 			if (p.p - Vector2(0, 36)).distance_to(bonus) < (115 if p.magnet > 0 else 38):
 				p.branch_collected[j] = true
 				p.stars += 3
@@ -462,6 +530,10 @@ func rescue(index: int) -> void:
 	p.hold = 0.0
 	p.hold_platform = -1
 	p.hold_kind = ""
+	p.launch_target = -1
+	p.launch_target_x = platform_x(saved)
+	p.pending_jump_target = -1
+	p.pending_jump_target_x = platform_x(saved)
 	p.pending_delay = 0.0
 	p.pending_kind = ""
 	p.rescues += 1
@@ -471,10 +543,11 @@ func progress(index: int) -> float:
 
 func autopilot(index: int) -> float:
 	var p: Dictionary = players[index]
-	var target: int = mini(STEPS, p.landed + 1)
+	var target: int = int(p.launch_target) if int(p.launch_target) > p.landed else mini(STEPS, p.landed + 1)
 	if p.p.y > platforms[target].y + 145:
 		target = p.checkpoint
-	var dx: float = platform_x(target, elapsed + 0.2) - p.p.x
+	var target_x: float = float(p.launch_target_x) if target == int(p.launch_target) else platform_x(target, elapsed + 0.2)
+	var dx: float = target_x - p.p.x
 	return clampf(dx / 35.0, -1.0, 1.0)
 
 func secret_position(id: int) -> Vector2:
@@ -505,7 +578,7 @@ static func restore(data: Dictionary):
 	var src: Dictionary = data.players[0]
 	var p: Dictionary = restored.players[0]
 	p.p = Vector2(clampf(float(src.get("x", 280)), 24, WIDTH - 24), clampf(float(src.get("y", START_Y)), float(restored.platforms[STEPS].y) - 180, START_Y + 160))
-	p.v = Vector2(clampf(float(src.get("vx", 0)), -SPEED, SPEED), clampf(float(src.get("vy", 0)), -JUMP * SPRING_JUMP_SCALE, 1400))
+	p.v = Vector2(clampf(float(src.get("vx", 0)), -SPEED, SPEED), clampf(float(src.get("vy", 0)), -JUMP * 1.58, 1400))
 	for key in ["checkpoint", "highest", "landed"]:
 		p[key] = clampi(int(src.get(key, 0)), 0, STEPS)
 	p.checkpoint = mini(p.checkpoint, p.highest)
