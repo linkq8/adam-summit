@@ -2,11 +2,14 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.7.6](https://github.com/linkq8/adam-summit/releases/tag/v0.7.6)**
+**[تحميل النسخة التجريبية 0.8.0](https://github.com/linkq8/adam-summit/releases/tag/v0.8.0)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
-- التلفاز: من لاعب إلى أربعة لاعبين، سباق أو تعاون، مع متابعة المراحل والعوالم.
+- التلفاز: من لاعب إلى أربعة لاعبين، سباق أو تعاون أو «سباق المفاجآت»، مع متابعة المراحل والعوالم.
+- كل مرحلة الآن 52 قفزة. مراحل العالم الثلاث تتدرج من الاستكشاف إلى التوقيت ثم قمة خاصة بالعالم.
+- زنبركات ومستنقعات وفخاخ لاصقة، مع تأخير اصطدام محسوب لا يسرّع السقوط.
+- في «سباق المفاجآت» لكل لاعب صناديق مستقلة وأداة واحدة: درع، حبر، لاصق، قفزتان مضاعفتان، أو إخفاء الخصم مؤقتًا.
 - اختيار مستقل للملابس والحقائب، وقائمة مصوّرة للعوالم.
 - القوائم تعمل بأزرار الاتجاه والعصا؛ الزر السفلي للاختيار والزر الأيمن للرجوع. يمكن تخصيص ريموت واحد للاعب واحد واستخدام أيدي التحكم للبقية.
 - إعدادات دقة التلفاز: متوازنة 1080p، دقة الشاشة الأصلية، أو اقتصادية 720p.
@@ -38,7 +41,7 @@ For Android, install the Android build template and SDK/JDK, then run `python3 s
 
 ## Validation and device limits
 
-Simulation, feature, UI, controller-menu and four-player progression tests passed. Live GitHub metadata retrieval and APK download/hash verification passed. The native Android installer opened and completed an update on an emulator. The 0.7.1 comparable desktop stress test reduced median draw calls from 799 to 187 and four-view scene-update CPU time from 278.7 to 130.3 µs. Uncapped frame p95 decreased from 20.788 to 5.051 ms. These are desktop measurements, not Shield or Xiaomi hardware results. See [benchmark method and limits](design/PERFORMANCE-071.md).
+Simulation, feature, surprise-mode, UI, controller-menu and four-player progression tests passed. Live GitHub metadata retrieval and APK download/hash verification passed. The native Android installer opened and completed an update on an emulator. The 0.8.0 desktop four-view benchmark measured 162.6 µs median scene-update CPU time, 187 median draw calls and 5.875 ms uncapped frame p95. These are desktop measurements, not Shield or Xiaomi hardware results. See [benchmark method and limits](design/PERFORMANCE-071.md).
 
 Android requires OpenGL ES 3.0. The original GLES2-only Full HD Mi TV Stick is unsupported. Newer Xiaomi sticks, Shield, individual Xbox/PlayStation/Nintendo controller models, foldables and physical 4K TV performance still require hardware validation. Android may expose a lower-resolution app surface than the television's panel resolution.
 
@@ -46,6 +49,7 @@ Android requires OpenGL ES 3.0. The original GLES2-only Full HD Mi TV Stick is u
 godot --headless --editor --path . --import
 godot --headless --path . --script tests/test_race.gd
 godot --headless --path . --script tests/test_features.gd
+godot --headless --path . --script tests/test_surprise.gd
 godot --headless --path . --script tests/test_ui.gd -- --test
 godot --headless --path . --script tests/test_controller_menu.gd -- --test
 godot --headless --path . --script tests/test_four_updates.gd -- --test
@@ -64,3 +68,5 @@ Version 0.7.4 redraws the jump, descent and landing as focused adventure movemen
 Version 0.7.5 uses seven compact jump poses plus idle/victory, with feet kept under the body for clearer landings. [Details](design/JUMP-075.md).
 
 Version 0.7.6 restores Adam’s natural likeness across all four outfits, retains the approved seven-phase jump, aligns the sole midpoint when facing either direction, and removes hats. [Art and validation](design/IDENTITY-V8.md).
+
+Version 0.8.0 extends every stage from 34 to 52 jumps and gives each three-stage world distinct pacing. Springs reach about double normal jump height; mud, sticky traps and creatures delay the next launch without altering descent speed. TV adds «سباق المفاجآت» for two to four players. Independent boxes provide a six-second one-hit shield, 1.8-second edge ink covering 40% while keeping the landing center visible, a 0.4-second sticky delay, two boosted jumps, or a 1.2-second invisibility penalty. Attacks target the nearest racer ahead, do not stack, and boxes end well before the summit.

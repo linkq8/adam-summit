@@ -10,7 +10,7 @@ func check(ok: bool, message: String) -> void:
 func _initialize() -> void:
 	for assisted in [true, false]:
 		var race = Model.new(assisted)
-		for tick in range(7200):
+		for tick in range(10800):
 			race.step(1.0 / 60.0, Vector2(race.autopilot(0), race.autopilot(1)))
 			if race.players[0].finish >= 0 and race.players[1].finish >= 0:
 				break
@@ -20,7 +20,7 @@ func _initialize() -> void:
 		check(race.players[0].rescues == 0, "All jumps reachable without rescue")
 		print("COURSE assisted=%s time=%.3f stars=%d rescues=%d" % [assisted, race.players[0].finish, race.players[0].stars, race.players[0].rescues])
 	var race = Model.new(false)
-	for tick in range(7200):
+	for tick in range(10800):
 		race.step(1.0 / 60, Vector2(race.autopilot(0), 0.0 if tick < 600 else race.autopilot(1)))
 		if race.players[0].finish >= 0 and race.players[1].finish >= 0:
 			break
@@ -45,7 +45,7 @@ func _initialize() -> void:
 		for challenge in range(3):
 			var solo = Model.new(challenge == 0, 1, chapter, challenge)
 			check(solo.players.size() == 1, "Single player model")
-			for tick in range(7200):
+			for tick in range(10800):
 				solo.step(1.0 / 60, Vector2(solo.autopilot(0), 0))
 				if solo.players[0].finish >= 0: break
 			check(solo.players[0].finish > 0, "Chapter %d difficulty %d reachable" % [chapter, challenge])
@@ -88,16 +88,27 @@ func _initialize() -> void:
 	for chapter in range(15):
 		var calm = Model.new(true, 1, chapter, 0)
 		var advanced = Model.new(false, 1, chapter, 2)
-		check(calm.platforms[2].w > advanced.platforms[2].w, "Calm preserves wider landings")
+		var has_wider_landing := false
+		for i in range(1, Model.STEPS):
+			if calm.platforms[i].w > advanced.platforms[i].w:
+				has_wider_landing = true
+				break
+		check(has_wider_landing, "Calm preserves wider landings")
 		for i in range(1, 7):
 			check(not calm.platforms[i].orb and not calm.platforms[i].enemy, "Calm opening safe")
 		for i in range(1, Model.STEPS + 1):
 			if advanced.platforms[i].checkpoint or i == Model.STEPS:
 				check(not advanced.platforms[i].orb and not advanced.platforms[i].enemy, "Checkpoint and summit free of obstacles")
 	var fragile = Model.new(false, 2, 0, 1)
-	for platform in [3, 5]:
+	var fragile_platforms := []
+	for wanted_capacity in [1, 2]:
+		for candidate in range(1, Model.STEPS):
+			if fragile.platforms[candidate].durability == wanted_capacity:
+				fragile_platforms.append(candidate)
+				break
+	check(fragile_platforms.size() == 2, "Both breakable types generated")
+	for platform in fragile_platforms:
 		var capacity: int = fragile.platforms[platform].durability
-		check(capacity == (1 if platform == 3 else 2), "Both breakable types generated")
 		for landing in range(capacity):
 			land_on(fragile, 0, platform)
 			check(fragile.remaining_jumps(0, platform) == capacity - landing - 1, "Exactly one use consumed per landing")
@@ -108,12 +119,12 @@ func _initialize() -> void:
 		check(fragile.players[0].v.y > 0, "Destroyed platform has no collision")
 	fragile.players[0].checkpoint = 0
 	fragile.rescue(0)
-	check(fragile.remaining_jumps(0, 3) == 1 and fragile.remaining_jumps(0, 5) == 2, "Retry restores section to avoid dead end")
+	check(fragile.remaining_jumps(0, fragile_platforms[0]) == 1 and fragile.remaining_jumps(0, fragile_platforms[1]) == 2, "Retry restores section to avoid dead end")
 	var saved_fragile = Model.new(false, 1, 0, 1)
-	land_on(saved_fragile, 0, 3)
-	land_on(saved_fragile, 0, 5)
+	land_on(saved_fragile, 0, fragile_platforms[0])
+	land_on(saved_fragile, 0, fragile_platforms[1])
 	var loaded_fragile = Model.restore(JSON.parse_string(JSON.stringify(saved_fragile.snapshot())))
-	check(loaded_fragile.remaining_jumps(0, 3) == 0 and loaded_fragile.remaining_jumps(0, 5) == 1, "Save retains destroyed and cracked platforms")
+	check(loaded_fragile.remaining_jumps(0, fragile_platforms[0]) == 0 and loaded_fragile.remaining_jumps(0, fragile_platforms[1]) == 1, "Save retains destroyed and cracked platforms")
 	for challenge in range(3):
 		for chapter in range(15):
 			var course = Model.new(challenge == 0, 1, chapter, challenge)

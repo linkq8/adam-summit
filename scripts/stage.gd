@@ -82,6 +82,7 @@ func _process(dt: float) -> void:
 	if frame != old_frame or row != old_row: Wardrobe.pose(hero, frame)
 	old_frame = frame; old_row = row
 	hero.position = Vector2(p.p.x, p.p.y - camera)
+	hero.visible = p.invisible <= 0 or p.landing_flash > 0
 	Wardrobe.face(hero, p.face)
 	var squash: float = 0 if game.low_detail else p.squash
 	var size := Wardrobe.scale_for(hero, 138)
@@ -170,8 +171,16 @@ func _draw() -> void:
 				flower(Vector2(x - w * 0.3, y - 6), Color("fff6d4"))
 				flower(Vector2(x + w * 0.34, y - 5), Color("f6a9b7"))
 		if plat.spring:
-			draw_arc(Vector2(x, y - 8), 10, 0, TAU, 20, Color("9de9ff"), 3, true)
-			draw_line(Vector2(x - 12, y - 5), Vector2(x + 12, y - 5), Color("fff4a9"), 3, true)
+			for coil in range(3):
+				draw_arc(Vector2(x, y - 7 - coil * 6), 15 - coil * 2, 0.15, PI - 0.15, 16, Color("65c9df"), 3, true)
+			draw_line(Vector2(x - 20, y - 5), Vector2(x + 20, y - 5), Color("fff4a9"), 5, true)
+		if plat.mud:
+			draw_ellipse(Vector2(x, y - 5), 78, 18, Color("75553f"), true)
+			draw_circle(Vector2(x - 17, y - 8), 6, Color("967052"))
+		if plat.sticky:
+			for petal in range(6):
+				draw_circle(Vector2(x, y - 13) + Vector2.from_angle(petal * TAU / 6.0) * 10, 7, Color("e77b9c"))
+			draw_circle(Vector2(x, y - 13), 7, Color("8d4772"))
 		if plat.moving:
 			draw_line(Vector2(x - 13, y + 23), Vector2(x + 13, y + 23), Color("ffdf90"), 2)
 			draw_line(Vector2(x - 13, y + 23), Vector2(x - 8, y + 19), Color("ffdf90"), 2)
@@ -199,6 +208,13 @@ func _draw() -> void:
 				draw_circle(Vector2(bx, y - 8), 5, Color("fff1bc"))
 			if not player.branch_collected.has(i):
 				for bonus in range(3): star(Vector2(bx + (bonus - 1) * 17, y - 48 - (8 if bonus == 1 else 0)), 8)
+	if model.surprise_mode:
+		for box_id in range(Model.BOX_STEPS.size()):
+			if player.boxes_taken.has(box_id): continue
+			var at: Vector2 = model.box_position(box_id) - Vector2(0, camera)
+			if at.y < -45 or at.y > view_height + 45: continue
+			round_box(Rect2(at - Vector2(24, 24), Vector2(48, 48)), Color("efb94f"), 10, Color("fff0a7"))
+			draw_string(game.DISPLAY_FONT, at + Vector2(-15, 14), "?", HORIZONTAL_ALIGNMENT_CENTER, 30, 40, Color("594533"))
 	for power in range(3):
 		if player.powers_taken.has(power): continue
 		var at: Vector2 = model.power_position(power) - Vector2(0, camera)
@@ -209,6 +225,8 @@ func _draw() -> void:
 	if player.shield > 0: draw_arc(center, 63, 0, TAU, 48, Color(0.55, 0.9, 1, 0.72), 3, true)
 	if player.bubble: draw_power(center + Vector2(48, 15), 2, 0.55)
 	if player.magnet > 0: draw_power(center + Vector2(-48, 15), 1, 0.55)
+	if model.surprise_mode and player.inventory >= 0:
+		draw_item(center + Vector2(49, -12), int(player.inventory), 0.72)
 	for id in range(3):
 		if not player.secrets.has(id):
 			var pos: Vector2 = model.secret_position(id) - Vector2(0, camera)
@@ -255,6 +273,15 @@ func draw_platform_marks() -> void:
 	for piece in debris:
 		var at: Vector2 = piece.pos - Vector2(0, camera)
 		marks.draw_colored_polygon(PackedVector2Array([at + Vector2(-7, -4), at + Vector2(5, -6), at + Vector2(8, 3), at + Vector2(-2, 7)]), Color(0.87, 0.65, 0.42, piece.life / 0.55))
+	var player: Dictionary = model.players[index]
+	if player.ink > 0:
+		var alpha := minf(0.94, player.ink * 1.25)
+		marks.draw_rect(Rect2(0, 0, 112, view_height), Color(0.035, 0.06, 0.08, alpha))
+		marks.draw_rect(Rect2(448, 0, 112, view_height), Color(0.035, 0.06, 0.08, alpha))
+		for blot in range(8):
+			var by := 38.0 + blot * (view_height - 76.0) / 7.0
+			marks.draw_circle(Vector2(102 if blot % 2 == 0 else 18, by), 23 + (blot % 3) * 5, Color(0.02, 0.04, 0.055, alpha))
+			marks.draw_circle(Vector2(458 if blot % 2 == 0 else 542, by + 17), 20 + (blot % 4) * 4, Color(0.02, 0.04, 0.055, alpha))
 
 func draw_creature(at: Vector2, world: int) -> void:
 	if world in [3, 4]:
@@ -284,6 +311,21 @@ func draw_creature(at: Vector2, world: int) -> void:
 
 func draw_power(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
 	icon(kind + 3, at, 64 * scale_factor)
+
+func draw_item(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
+	var colors := [Color("78cee7"), Color("263d4d"), Color("e66f91"), Color("f0b73f"), Color("9a83d7")]
+	draw_circle(at, 24 * scale_factor, Color("fff8df"))
+	draw_circle(at, 20 * scale_factor, colors[kind])
+	match kind:
+		Model.ITEM_SHIELD: draw_arc(at, 12 * scale_factor, 0, TAU, 24, Color.WHITE, 3 * scale_factor, true)
+		Model.ITEM_INK:
+			draw_circle(at, 9 * scale_factor, Color("111c24"))
+			draw_circle(at + Vector2(-7, -7) * scale_factor, 5 * scale_factor, Color("111c24"))
+		Model.ITEM_STICKY: draw_line(at + Vector2(-10, 8) * scale_factor, at + Vector2(10, -8) * scale_factor, Color.WHITE, 5 * scale_factor, true)
+		Model.ITEM_SPRING:
+			for y in [-8, 0, 8]: draw_arc(at + Vector2(0, y) * scale_factor, 9 * scale_factor, 0.2, PI - 0.2, 12, Color.WHITE, 2.5 * scale_factor, true)
+		Model.ITEM_INVISIBLE:
+			draw_arc(at, 11 * scale_factor, PI, TAU, 18, Color.WHITE, 3 * scale_factor, true)
 
 func draw_finish(at: Vector2) -> void:
 	var world: int = game.model.world

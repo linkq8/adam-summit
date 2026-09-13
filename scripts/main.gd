@@ -25,6 +25,7 @@ var difficulty := 0
 var costume := 0
 var backpack := 0
 var cooperative := false
+var surprise_mode := false
 var preview_outfit := 0
 var preview_pack := 0
 var guide_label: Label
@@ -62,6 +63,7 @@ var views: Array = []
 var stages: Array = []
 var star_labels: Array = []
 var height_labels: Array = []
+var item_labels: Array = []
 var clock_label: Label
 var count_label: Label
 var perf_label: Label
@@ -150,6 +152,7 @@ func _ready() -> void:
 	show_lobby()
 	if demo:
 		cooperative = "--coop" in args
+		surprise_mode = "--surprise" in args
 		if "--level" in args:
 			level = clampi(int(args[args.find("--level") + 1]), 0, Worlds.COUNT - 1)
 		start_race()
@@ -348,7 +351,10 @@ func show_tutorial() -> void:
 	label(modal, "نقفز إلى القمّة!", Rect2(r.position + Vector2(20, 30), Vector2(r.size.x - 40, 60)), 32)
 	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 245), 220, 1)
 	label(modal, "←                    →", Rect2(r.position + Vector2(20, 295), Vector2(r.size.x - 40, 65)), 43, BLUE)
-	label(modal, ("القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة" if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
+	var tv_help := "القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة"
+	if surprise_mode:
+		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يغطي الأطراف وتبقى منطقة الهبوط واضحة"
+	label(modal, (tv_help if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
 	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
 	help_time = 0
 	play_sound("help")
@@ -357,13 +363,21 @@ func build_hud() -> void:
 	for c in hud.get_children(): hud.remove_child(c); c.queue_free()
 	star_labels.clear()
 	height_labels.clear()
+	item_labels.clear()
 	for i in range(player_count):
 		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
 		box(hud, rect, Color(1, 0.99, 0.95, 0.95), Color("fff7df"), 22)
 		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(78, 46)), 20, Color("a06a20")))
 		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(85, 7), Vector2(maxf(90, rect.size.x - 95), 46)), 16))
 		if player_count > 1:
-			label(hud, "اللاعب %d" % (i + 1), Rect2(rect.position.x, rect.position.y + 64, rect.size.x, 24), 16, [BLUE, ORANGE, Color("267342"), Color("8050a2")][i])
+			var player_tag := label(hud, "اللاعب %d" % (i + 1), Rect2(rect.position.x, rect.position.y + 64, rect.size.x * 0.48, 24), 16, Color("fff7dc"))
+			player_tag.add_theme_color_override("font_outline_color", [BLUE, ORANGE, Color("267342"), Color("8050a2")][i].darkened(0.45))
+			player_tag.add_theme_constant_override("outline_size", 4)
+			var item_label := label(hud, "", Rect2(rect.position.x + rect.size.x * 0.46, rect.position.y + 64, rect.size.x * 0.54, 24), 15, Color("fff7dc"))
+			item_label.add_theme_color_override("font_outline_color", Color("3d4f48"))
+			item_label.add_theme_constant_override("outline_size", 4)
+			item_label.visible = surprise_mode
+			item_labels.append(item_label)
 	var pause_btn := button(hud, "Ⅱ", Rect2(canvas_size.x - 67, safe_top + 5, 51, 55), pause_race)
 	pause_btn.focus_mode = Control.FOCUS_NONE
 	clock_label = label(hud, "", Rect2(canvas_size.x / 2 - 40, safe_top + 64, 80, 30), 16)
@@ -382,6 +396,7 @@ func start_race() -> void:
 	easy = difficulty == 0
 	model = Model.new(easy, player_count, level, difficulty)
 	model.cooperative = tv and player_count > 1 and cooperative
+	model.surprise_mode = tv and player_count > 1 and surprise_mode
 	select_music()
 	state = "countdown"
 	countdown = 3
@@ -410,20 +425,7 @@ func _physics_process(dt: float) -> void:
 		if demo:
 			directions = []
 			for i in range(player_count): directions.append(model.autopilot(i))
-		for event in model.step(dt, directions):
-			match event.kind:
-				"star", "secret":
-					stages[event.player].burst(event.position)
-					play_sound("star" if event.kind == "star" else "checkpoint")
-				"crumble": stages[event.player].crumble(event.position, event.width); play_sound("crumble")
-				"crack": play_sound("crack")
-				"power": stages[event.player].burst(event.position); play_sound("power")
-				"checkpoint": play_sound("checkpoint"); save_journey()
-				"rescue": play_sound("rescue")
-				"bump":
-					if haptics and mobile and not tv: Input.vibrate_handheld(30, 0.35)
-				"bounce":
-					if event.player == 0: play_sound("bounce" + str(model.world))
+		handle_game_events(model.step(dt, directions))
 		if model.complete(): show_finish()
 		save_timer += dt
 		if save_timer > 5: save_timer = 0; save_journey()
@@ -433,6 +435,9 @@ func _physics_process(dt: float) -> void:
 		for i in range(player_count):
 			star_labels[i].text = "★ %d" % model.players[i].stars
 			height_labels[i].text = "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
+			if surprise_mode and i < item_labels.size():
+				var held_item := int(model.players[i].inventory)
+				item_labels[i].text = ("A: " + Model.item_name(held_item)) if held_item >= 0 else "A: —"
 		if model.cooperative:
 			for i in range(player_count):
 				if model.players[i].finish >= 0: height_labels[i].text = "بانتظار رفيقك ♥"
@@ -444,6 +449,27 @@ func _physics_process(dt: float) -> void:
 			if p.bubble: abilities += "فقاعة إنقاذ ✓"
 			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • المسار الذهبي: نجوم أكثر")
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
+
+func handle_game_events(events: Array[Dictionary]) -> void:
+	for event in events:
+		match event.kind:
+			"star", "secret":
+				stages[event.player].burst(event.position)
+				play_sound("star" if event.kind == "star" else "checkpoint")
+			"crumble": stages[event.player].crumble(event.position, event.width); play_sound("crumble")
+			"crack": play_sound("crack")
+			"power", "battle_box":
+				stages[event.player].burst(event.position)
+				play_sound("power")
+			"checkpoint": play_sound("checkpoint"); save_journey()
+			"rescue": play_sound("rescue")
+			"bump", "trap", "item_hit":
+				play_sound("crack")
+				if haptics and mobile and not tv: Input.vibrate_handheld(30, 0.35)
+			"shield_block", "item_used": play_sound("power")
+			"spring": play_sound("go")
+			"bounce":
+				if event.player == 0: play_sound("bounce" + str(model.world))
 
 func read_directions():
 	var result := [touch_directions.x, touch_directions.y, 0.0, 0.0]
@@ -503,6 +529,12 @@ func _input(event: InputEvent) -> void:
 					elif state == "players": show_players(i * 3 + 2)
 					get_viewport().set_input_as_handled()
 					return
+		if event.button_index == JOY_BUTTON_A and state == "racing" and model.surprise_mode:
+			var item_player := slots.find(event.device)
+			if item_player >= 0 and item_player < player_count:
+				handle_game_events(model.use_item(item_player))
+				get_viewport().set_input_as_handled()
+				return
 		if event.button_index == JOY_BUTTON_A and state not in ["racing", "countdown"]:
 			var focused := get_viewport().gui_get_focus_owner()
 			if focused is Button and not focused.disabled: focused.pressed.emit()
@@ -514,6 +546,12 @@ func _input(event: InputEvent) -> void:
 			elif state == "lobby": begin_adventure()
 			get_viewport().set_input_as_handled()
 	if event is InputEventKey and event.pressed and not event.echo:
+		var pressed_key: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
+		if state == "racing" and model.surprise_mode and pressed_key in [KEY_ENTER, KEY_SPACE]:
+			var item_player := remote_player if remote_player >= 0 and remote_player < player_count else 0
+			handle_game_events(model.use_item(item_player))
+			get_viewport().set_input_as_handled()
+			return
 		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
@@ -662,6 +700,8 @@ func load_options() -> void:
 	costume = clampi(int(data.get("costume", 0)), 0, 3)
 	backpack = clampi(int(data.get("backpack", 0)), 0, 2)
 	cooperative = bool(data.get("cooperative", false))
+	surprise_mode = bool(data.get("surprise_mode", false))
+	if surprise_mode: cooperative = false
 	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
 	low_detail = bool(data.get("low_detail", false))
 	tv_native_resolution = bool(data.get("tv_native_resolution", false))
@@ -680,7 +720,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 2, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -911,11 +951,25 @@ func show_tv_lobby() -> void:
 	button(modal, "العالم: " + Worlds.WORLDS[level / 3], Rect2(792, 327, 380, 59), show_worlds)
 	button(modal, "اللاعبون والملابس · %d" % player_count, Rect2(792, 402, 380, 59), show_players)
 	button(modal, DIFFICULTIES[difficulty], Rect2(792, 477, 183, 57), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())
-	button(modal, "تعاون" if cooperative else "سباق", Rect2(989, 477, 183, 57), func(): cooperative = not cooperative; save_options(); show_tv_lobby())
+	var mode_name := "سباق المفاجآت" if surprise_mode else ("تعاون" if cooperative else "سباق")
+	button(modal, mode_name, Rect2(989, 477, 183, 57), cycle_multiplayer_mode)
 	button(modal, "الإعدادات", Rect2(792, 552, 183, 54), func(): settings_return = "lobby"; show_settings())
 	button(modal, "كيف ألعب؟", Rect2(989, 552, 183, 54), show_tutorial)
 	label(modal, "اختر عالمك. جهّز رفيقك. وانطلق!", Rect2(90, 641, 580, 43), 27, Color("fff5d4"))
 	queue_redraw()
+
+func cycle_multiplayer_mode() -> void:
+	if surprise_mode:
+		surprise_mode = false
+		cooperative = false
+	elif cooperative:
+		cooperative = false
+		surprise_mode = true
+	else:
+		cooperative = true
+		surprise_mode = false
+	save_options()
+	show_tv_lobby()
 
 func show_players(focus_index: int = -1) -> void:
 	selection_surface("رفاق المغامرة", "لكل لاعب أسلوبه… اختاروا ملابسكم", "players")

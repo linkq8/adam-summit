@@ -9,7 +9,7 @@ func _initialize() -> void:
 			var m = Model.new(difficulty == 0, 1, level, difficulty)
 			for tick in range(18000): m.step(1.0 / 60, Vector2.ZERO)
 			check(m.players[0].finish < 0 and m.players[0].highest == 0, "No-input run cannot climb %d/%d" % [level, difficulty])
-			for start in [1, 11, 15, 21, 31]:
+			for start in Model.STEERING_GATES:
 				var a: Dictionary = m.platforms[start]
 				var b: Dictionary = m.platforms[start + 1]
 				check(absf(a.x - b.x) > (a.w + b.w) / 2 + 26, "Gate landing intervals separated including body width")
