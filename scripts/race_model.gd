@@ -178,18 +178,18 @@ func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 		return {"x": 280.0, "y": START_Y, "w": 490.0, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	# Approach the physics-safe limits gradually without a hard difficulty step.
 	var tier: float = float(absolute_index) / (float(absolute_index) + 100.0)
-	var gap: float = [78.0, 93.0, 105.0, 86.0, 113.0, 88.0][absolute_index % 6] + tier * 12.0
+	var gap: float = [81.0, 97.0, 109.0, 89.0, 117.0, 92.0][absolute_index % 6] + tier * 11.0
 	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7]
 	var previous_x: float = float(platforms[-1].x)
 	var lane: float = clampf(desired_lane, previous_x - 145.0, previous_x + 145.0)
-	var width: float = maxf(104.0, [210.0, 175.0, 155.0, 185.0][absolute_index % 4] - tier * 49.0)
+	var width: float = maxf(94.0, [190.0, 160.0, 142.0, 168.0][absolute_index % 4] - tier * 44.0)
 	var plat: Dictionary = {"x": lane, "y": previous_y - gap, "w": width, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	if absolute_index > 8 and absolute_index % 11 == 6:
 		plat.durability = 1
 		plat.drop_on_contact = true
 		plat.branch_x = clampf(lane + (110.0 if lane < 280.0 else -110.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
 		plat.branch_y = plat.y
-		plat.branch_w = 112.0 - tier * 19.0
+		plat.branch_w = 104.0 - tier * 16.0
 		plat.branch_durability = 0
 		plat.branch_safe = true
 	elif absolute_index > 12 and absolute_index % 17 == 9:
@@ -213,7 +213,7 @@ func _configure_first_stage() -> void:
 	# varied rises and several side surfaces. The number of simulation steps is
 	# unchanged, so saves/progress stay compatible, while the visible landing
 	# choices increase substantially.
-	var gaps := [75.0, 117.0, 84.0, 125.0, 79.0, 109.0, 122.0, 88.0]
+	var gaps := [72.0, 120.0, 82.0, 129.0, 76.0, 113.0, 127.0, 86.0]
 	var height := START_Y
 	for i in range(1, STEPS + 1):
 		var gap: float = 84.0 if i - 1 in STEERING_GATES else gaps[(i - 1) % gaps.size()]
@@ -223,15 +223,15 @@ func _configure_first_stage() -> void:
 			# The original opening-stage forks were level with the main route.
 			platforms[i].branch_y = height
 		if i < STEPS:
-			var base_width: float = [200.0, 180.0, 164.0][difficulty]
+			var base_width: float = [180.0, 162.0, 148.0][difficulty]
 			var width_scale: float = [1.0, 0.82, 0.70, 0.88, 0.76][i % 5]
 			platforms[i].w = base_width * width_scale
 			if platforms[i].checkpoint:
-				platforms[i].w = [216.0, 196.0, 180.0][difficulty]
+				platforms[i].w = [198.0, 180.0, 164.0][difficulty]
 	# Keep the mandatory steering pairs compact and clearly separated.
 	for gate in STEERING_GATES:
 		for offset in range(2):
-			platforms[gate + offset].w = [140.0, 128.0, 116.0][difficulty]
+			platforms[gate + offset].w = [126.0, 116.0, 106.0][difficulty]
 	# First-contact crumble platforms always have a permanent side landing.
 	for i in FIRST_STAGE_FRAGILE:
 		var plat: Dictionary = platforms[i]
@@ -264,7 +264,7 @@ func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
 	var reachable_max: float = minf(460.0, minf(previous_x + 145.0, next_x + 145.0))
 	plat.branch_x = clampf(desired_x, reachable_min, reachable_max)
 	plat.branch_y = float(plat.y) - reachable_lift
-	plat.branch_w = [132.0, 114.0, 98.0][difficulty]
+	plat.branch_w = [122.0, 106.0, 92.0][difficulty]
 	plat.branch_durability = 0 if permanent else 1
 	plat.branch_safe = permanent
 	plat.branch_fragile = not permanent

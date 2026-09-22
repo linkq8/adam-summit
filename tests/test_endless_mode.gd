@@ -22,6 +22,8 @@ func run() -> void:
 	check(easy_start.endless_score > 15000, "Score records the highest elevation")
 	var opening = Model.new(false, 1, 0, 1, true)
 	check(float(easy_start.platforms[-1].w) < float(opening.platforms[-1].w), "Higher platforms become narrower")
+	check(float(opening.platforms[2].w) <= 160.0, "Endless starts with smaller landing choices")
+	check(float(opening.platforms[5].y) - float(opening.platforms[6].y) >= 80.0, "Endless climb varies its platform rises")
 	var highest_score: int = easy_start.endless_score
 	var rider: Dictionary = easy_start.players[0]
 	rider.p.y = float(easy_start.platforms[int(rider.highest)].y) + 155.0

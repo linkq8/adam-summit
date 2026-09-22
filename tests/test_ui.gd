@@ -66,6 +66,8 @@ func run() -> void:
 	check(game.player_count == 1 and game.model.players.size() == 1, "Phones force single player")
 	check(is_zero_approx(game.views[0].position.x) and is_equal_approx(game.views[0].size.x, game.canvas_size.x), "Phone playfield reaches both screen edges")
 	check(not game.stages[0].draws_panel_background(), "Phone uses one seamless full-screen background")
+	check(is_equal_approx(game.stages[0].scale.x, game.views[0].size.x / 560.0 * 0.9), "Phone camera is zoomed out by ten percent")
+	check(is_equal_approx(game.stages[0].position.x, game.views[0].size.x * 0.05), "Zoomed playfield stays centered")
 	game.countdown = 0.001
 	game._physics_process(1.0 / 60)
 	check(is_instance_valid(game.guide_panel) and game.guide_panel.size.y <= 36, "Phone guidance uses a compact overlay")

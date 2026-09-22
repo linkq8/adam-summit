@@ -200,6 +200,8 @@ static func canvas_for_pixels(pixels: Vector2, television: bool = false) -> Vect
 	var aspect := pixels.x / maxf(pixels.y, 1.0)
 	return Vector2(maxf(540.0, 800.0 * aspect), maxf(800.0, 540.0 / aspect))
 
+const WORLD_ZOOM := 0.90
+
 func layout_ui() -> void:
 	drag_id = -1
 	layout_pending = false
@@ -235,8 +237,9 @@ func layout_ui() -> void:
 		var x := 0.0 if phone_view else (32 + i * (w + 32) if player_count > 1 else (canvas_size.x - w) / 2)
 		views[i].position = Vector2(x, field_top)
 		views[i].size = Vector2(w, maxf(240, canvas_size.y - field_top - field_bottom))
-		stages[i].scale = Vector2.ONE * w / Model.WIDTH
-		stages[i].view_height = views[i].size.y * Model.WIDTH / w
+		stages[i].scale = Vector2.ONE * w / Model.WIDTH * WORLD_ZOOM
+		stages[i].position.x = (w - Model.WIDTH * stages[i].scale.x) * 0.5
+		stages[i].view_height = views[i].size.y / stages[i].scale.y
 		views[i].visible = state not in ["lobby", "settings"] and i < player_count
 	build_hud()
 	if state == "lobby": show_lobby()
@@ -971,7 +974,7 @@ func _draw() -> void:
 	draw_texture_rect(BACKGROUND, Rect2((canvas_size - size) / 2, size), false)
 
 func move_drag(dx: float) -> void:
-	drag_target = clampf(drag_target + dx * Model.WIDTH / maxf(1, views[0].size.x), 24, Model.WIDTH - 24)
+	drag_target = clampf(drag_target + dx / maxf(0.01, stages[0].scale.x), 24, Model.WIDTH - 24)
 
 func show_worlds() -> void:
 	if tv:

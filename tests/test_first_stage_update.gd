@@ -33,8 +33,10 @@ func _initialize() -> void:
 			if course.platforms[i].has("branch_x"):
 				branches += 1
 		check(opening_width < comparison_width, "First stage uses smaller main landings at difficulty %d" % difficulty)
+		check(float(course.platforms[5].w) <= [180.0, 162.0, 148.0][difficulty], "Opening main landings use the tighter width at difficulty %d" % difficulty)
+		check(float(course.platforms[Model.STEERING_GATES[0]].w) <= [126.0, 116.0, 106.0][difficulty], "Mandatory turn landing is narrower at difficulty %d" % difficulty)
 		check(branches >= 20, "First stage exposes many additional landing choices")
-		check(max_gap - min_gap >= 30.0, "First-stage jump heights visibly vary")
+		check(max_gap - min_gap >= 50.0, "First-stage jump heights visibly vary")
 		check(not comparison.platforms[Model.FIRST_STAGE_FRAGILE[0]].has("instant_break"), "New geometry stays limited to stage one")
 
 		for platform in Model.FIRST_STAGE_FRAGILE:

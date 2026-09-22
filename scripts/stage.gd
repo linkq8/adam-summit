@@ -207,13 +207,15 @@ func _draw() -> void:
 	# the phone's clipped playfield created a visible inner rectangle. Split-screen
 	# TV panels still need their own background because each has separate bounds.
 	if draws_panel_background():
+		var overscan: float = maxf(0.0, (game.views[index].size.x / maxf(scale.x, 0.01) - Model.WIDTH) * 0.5)
+		var panel_rect := Rect2(-overscan, 0, Model.WIDTH + overscan * 2.0, view_height)
 		if model.world == 0:
-			draw_texture_rect_region(BACKGROUND, Rect2(0, 0, 560, view_height), Rect2(0, 0, BACKGROUND.get_width(), BACKGROUND.get_height() * 0.72))
+			draw_texture_rect_region(BACKGROUND, panel_rect, Rect2(0, 0, BACKGROUND.get_width(), BACKGROUND.get_height() * 0.72))
 		else:
 			var texture: Texture2D = EXTRA_BG if model.world >= 3 else WORLD_BG
 			var panel: int = model.world - (3 if model.world >= 3 else 1)
 			var source := Rect2(panel * texture.get_width() / 2.0, 0, texture.get_width() / 2.0, texture.get_height() * 0.94)
-			draw_texture_rect_region(texture, Rect2(0, 0, 560, view_height), source)
+			draw_texture_rect_region(texture, panel_rect, source)
 	if not game.low_detail:
 		draw_ambience(model.world, time, camera)
 	# A few slow clouds at high elevations; scene art remains visible underneath.

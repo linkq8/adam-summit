@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.8.7](https://github.com/linkq8/adam-summit/releases/tag/v0.8.7)**
+**[تحميل النسخة التجريبية 0.8.8](https://github.com/linkq8/adam-summit/releases/tag/v0.8.8)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
@@ -97,3 +97,8 @@ Stage 1-1 now has smaller main platforms, a wider range of jump heights, and mor
 ## Version 0.8.7
 
 Stage 1-1 has smaller landings and a wider range of jump heights. Three violet platforms collapse on contact without launching the player; each has a safe green bypass. A new solo Endless Climb gradually narrows and raises the platforms as the player ascends. Falling ends the run immediately, with a local best score based on maximum height.
+
+
+## Version 0.8.8
+
+Stage 1-1 and Endless Climb now use smaller platforms and greater variation in jump heights. The playfield camera zooms out by 10% on phone and TV so players can see more of the climb; touch steering compensates for the new scale. Safe routes remain available around every immediate-collapse platform.

@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.8 tighter landings and wider camera
+
+Stage 1-1 reduces ordinary, checkpoint, steering-gate and alternate landing widths by about 9–11%, and increases the variation between its short and tall rises. All immediate-collapse surfaces keep their permanent bypasses. Endless Climb starts with narrower landings and slightly taller rises, then continues shrinking toward a 94-unit floor while height still grows gradually. Reachability simulations cover the first stage at all three difficulty settings, including a route where every crumble landing has already disappeared, and the endless route past 160 generated platforms.
+
+The playfield camera is scaled to 90% on phone and TV, revealing 11% more world space across each panel. It remains centered; TV panel backgrounds extend into the newly exposed side margins. Touch displacement is converted through the new scale, so a physical finger drag retains its intended world movement.
+
 ## v0.8.7 smaller opening landings and endless climb
 
 Stage 1-1 now uses 164–200 unit base widths by difficulty and a 75–125 unit rise pattern. Its steering gate pairs retain a shorter 84-unit rise to keep their required lateral switches reachable. Three violet platforms disappear as soon as Adam touches them and do not launch him upward. Each has a permanent green bypass, while the existing coral one-use surfaces still bounce before breaking.
