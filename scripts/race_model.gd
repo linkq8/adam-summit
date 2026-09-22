@@ -23,6 +23,9 @@ const POWER_STEPS := [6, 22, 38]
 const SECRET_STEPS := [9, 25, 37]
 const BOX_STEPS := [11, 23, 35, 43]
 const STEERING_GATES := [1, 13, 19, 29, 45]
+const FIRST_STAGE_FRAGILE := [6, 12, 18, 28, 34, 42, 47]
+const FIRST_STAGE_MUD := [21, 36]
+const FIRST_STAGE_EXTRA_ROUTES := [4, 15, 23, 32, 41, 49]
 const ITEM_SHIELD := 0
 const ITEM_INK := 1
 const ITEM_STICKY := 2
@@ -133,6 +136,8 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			if platforms[j].has("branch_x"):
 				platforms[j].branch_x = side
 				platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
+	if level == 0:
+		_configure_first_stage()
 	platforms[STEPS].x = 280.0
 	platforms[STEPS].w = 300.0
 	_configure_spring_profiles()
@@ -163,6 +168,66 @@ func _clear_platform_hazards(plat: Dictionary) -> void:
 	plat.sticky = false
 	plat.enemy = false
 	plat.orb = false
+
+func _configure_first_stage() -> void:
+	# The opening course is a denser race route: shorter landings, strongly
+	# varied rises and several side surfaces. The number of simulation steps is
+	# unchanged, so saves/progress stay compatible, while the visible landing
+	# choices increase substantially.
+	var gaps := [82.0, 106.0, 90.0, 116.0, 86.0, 100.0, 111.0, 88.0]
+	var height := START_Y
+	for i in range(1, STEPS + 1):
+		height -= gaps[(i - 1) % gaps.size()]
+		platforms[i].y = height
+		if platforms[i].has("branch_x"):
+			# The original opening-stage forks were level with the main route.
+			platforms[i].branch_y = height
+		if i < STEPS:
+			var base_width: float = [224.0, 202.0, 182.0][difficulty]
+			var width_scale: float = [1.0, 0.82, 0.70, 0.88, 0.76][i % 5]
+			platforms[i].w = base_width * width_scale
+			if platforms[i].checkpoint:
+				platforms[i].w = [232.0, 212.0, 196.0][difficulty]
+	# Keep the mandatory steering pairs compact and clearly separated.
+	for gate in STEERING_GATES:
+		for offset in range(2):
+			platforms[gate + offset].w = [150.0, 138.0, 126.0][difficulty]
+	# First-contact crumble platforms always have a permanent side landing.
+	for i in FIRST_STAGE_FRAGILE:
+		var plat: Dictionary = platforms[i]
+		_clear_platform_hazards(plat)
+		plat.durability = 1
+		plat.instant_break = true
+		_add_first_stage_branch(i, true, 16.0 + (i % 3) * 5.0)
+	# Mud can be skirted on the platform edge or bypassed using a raised route.
+	for i in FIRST_STAGE_MUD:
+		var plat: Dictionary = platforms[i]
+		_clear_platform_hazards(plat)
+		plat.mud = true
+		plat.mud_half_width = plat.w * 0.23
+		_add_first_stage_branch(i, true, 22.0)
+	# Extra small one-use leaves add more visible platforms and risky shortcuts.
+	for i in FIRST_STAGE_EXTRA_ROUTES:
+		_clear_platform_hazards(platforms[i])
+		_add_first_stage_branch(i, false, 20.0 + (i % 2) * 8.0)
+
+func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
+	var plat: Dictionary = platforms[i]
+	var main_x: float = float(plat.x)
+	var rise_from_previous: float = float(platforms[i - 1].y) - float(plat.y)
+	var reachable_lift: float = minf(lift, maxf(0.0, 126.0 - rise_from_previous))
+	var desired_x: float = 120.0 if main_x >= 280.0 else 440.0
+	var previous_x: float = float(platforms[i - 1].x)
+	var next_x: float = float(platforms[mini(STEPS, i + 1)].x)
+	var reachable_min: float = maxf(100.0, maxf(previous_x - 180.0, next_x - 180.0))
+	var reachable_max: float = minf(460.0, minf(previous_x + 180.0, next_x + 180.0))
+	plat.branch_x = clampf(desired_x, reachable_min, reachable_max)
+	plat.branch_y = float(plat.y) - reachable_lift
+	plat.branch_w = [132.0, 114.0, 98.0][difficulty]
+	plat.branch_durability = 0 if permanent else 1
+	plat.branch_safe = permanent
+	plat.branch_fragile = not permanent
+	plat.shortcut = true
 
 func _configure_spring_profiles() -> void:
 	for from_index in range(STEPS):
@@ -208,6 +273,11 @@ func remaining_jumps(index: int, platform: int) -> int:
 
 func platform_exists(index: int, platform: int) -> bool:
 	return remaining_jumps(index, platform) != 0
+
+func branch_exists(index: int, platform: int) -> bool:
+	if platform < 0 or platform >= platforms.size() or not platforms[platform].has("branch_x"):
+		return false
+	return int(platforms[platform].get("branch_durability", 1)) == 0 or not players[index].branch_hits.has(platform)
 
 func platform_x(i: int, at_time: float = -1.0) -> float:
 	var t := elapsed if at_time < 0 else at_time
@@ -279,7 +349,7 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 		var branch_crossed: bool = plat.has("branch_x") and previous.y <= branch_y + 0.01 and p.p.y >= branch_y
 		var branch_fraction := clampf((branch_y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if branch_crossed else 2.0
 		var branch_x := lerpf(previous.x, p.p.x, branch_fraction) if branch_crossed else -999.0
-		var on_branch: bool = not on_main and branch_crossed and not p.branch_hits.has(j) and absf(branch_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + 13
+		var on_branch: bool = not on_main and branch_crossed and branch_exists(index, j) and absf(branch_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + 13
 		if not on_main and not on_branch:
 			continue
 		var fraction: float = main_fraction if on_main else branch_fraction
@@ -289,8 +359,9 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 		if p.invisible > 0:
 			p.landing_flash = 0.14
 		if on_branch:
-			p.branch_hits[j] = true
-			events.append({"kind": "crumble", "player": index, "position": Vector2(plat.branch_x, branch_y), "width": plat.branch_w})
+			if int(plat.get("branch_durability", 1)) > 0:
+				p.branch_hits[j] = true
+				events.append({"kind": "crumble", "player": index, "position": Vector2(plat.branch_x, branch_y), "width": plat.branch_w})
 		if on_main and plat.durability > 0:
 			p.platform_hits[j] += 1
 			events.append({"kind": "crumble" if not platform_exists(index, j) else "crack", "player": index, "position": Vector2(platform_contact, plat.y), "width": plat.w})
@@ -324,7 +395,9 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 		var delay_kind := str(p.pending_kind)
 		p.pending_delay = 0.0
 		p.pending_kind = ""
-		if on_main and plat.mud:
+		var mud_half_width: float = float(plat.get("mud_half_width", INF))
+		var touches_mud: bool = on_main and plat.mud and absf(main_x - platform_contact) <= mud_half_width
+		if touches_mud:
 			if MUD_DELAY >= landing_delay: delay_kind = "mud"
 			landing_delay = maxf(landing_delay, MUD_DELAY)
 		if on_main and plat.sticky:

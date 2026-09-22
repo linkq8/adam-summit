@@ -81,7 +81,7 @@ func _process(dt: float) -> void:
 		terrain[i].visible = on_screen and game.model.platform_exists(index, i)
 		if terrain[i].visible: terrain[i].position = Vector2(game.model.platform_x(i), y) + offsets[i]
 		var branch_y: float = float(plat.get("branch_y", plat.y)) - camera
-		branches[i].visible = branch_y > -90 and branch_y < view_height + 90 and plat.has("branch_x") and not p.branch_hits.has(i)
+		branches[i].visible = branch_y > -90 and branch_y < view_height + 90 and game.model.branch_exists(index, i)
 		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, branch_y) + branch_offsets[i]
 	var frame := Wardrobe.jump_frame(p.v.y, p.squash)
 	if game.state in ["countdown", "paused"]: frame = 0
@@ -166,7 +166,7 @@ func predicted_landing(player: Dictionary) -> Vector2:
 		var surfaces: Array[Dictionary] = []
 		if game.model.platform_exists(index, i):
 			surfaces.append({"y": float(plat.y), "x": game.model.platform_x(i), "w": float(plat.w), "moving": bool(plat.moving), "i": i})
-		if plat.has("branch_x") and not player.branch_hits.has(i):
+		if game.model.branch_exists(index, i):
 			surfaces.append({"y": float(plat.get("branch_y", plat.y)), "x": float(plat.branch_x), "w": float(plat.branch_w), "moving": false, "i": i})
 		for surface in surfaces:
 			var fall: float = float(surface.y) - player.p.y
@@ -236,8 +236,9 @@ func _draw() -> void:
 			atlas_item(self, 4, Vector2(x, y - 24), 62)
 			draw_spring_guide(Vector2(x, y - 58), float(plat.spring_target_x) - x)
 		if plat.mud:
-			draw_ellipse(Vector2(x, y - 5), 88, 21, Color("573f35"), true)
-			draw_ellipse(Vector2(x - 8, y - 8), 55, 10, Color("8f6a4e"), true)
+			var mud_radius: float = float(plat.get("mud_half_width", 88.0))
+			draw_ellipse(Vector2(x, y - 5), mud_radius, 21, Color("573f35"), true)
+			draw_ellipse(Vector2(x - mud_radius * 0.09, y - 8), mud_radius * 0.63, 10, Color("8f6a4e"), true)
 			for bubble in range(3):
 				draw_circle(Vector2(x - 24 + bubble * 24, y - 10 - bubble % 2 * 3), 4 + bubble, Color("b9906b"))
 		if plat.sticky:
@@ -267,7 +268,7 @@ func _draw() -> void:
 		if plat.has("branch_x"):
 			var bx: float = plat.branch_x
 			var by: float = float(plat.get("branch_y", plat.y)) - camera
-			if not player.branch_hits.has(i):
+			if model.branch_exists(index, i):
 				draw_circle(Vector2(bx, by - 8), 5, Color("fff1bc"))
 				if bool(plat.get("shortcut", false)): draw_shortcut_marker(Vector2(bx, by - 30))
 			if not player.branch_collected.has(i):
@@ -374,6 +375,14 @@ func draw_platform_marks() -> void:
 		for offset in offsets:
 			var at := Vector2(x + plat.w * offset, y + 1)
 			marks.draw_polyline(PackedVector2Array([at, at + Vector2(-5, 7), at + Vector2(4, 12), at + Vector2(-2, 20)]), Color("744738"), 2.5, true)
+		if bool(plat.get("instant_break", false)):
+			for arrow in [-1, 1]:
+				var warning := Vector2(x + arrow * 17, y - 28)
+				marks.draw_polyline(PackedVector2Array([warning + Vector2(-5, -4), warning, warning + Vector2(5, -4)]), Color("9b473c"), 3.0, true)
+		if game.model.branch_exists(index, i) and bool(plat.get("branch_fragile", false)):
+			var bx: float = float(plat.branch_x)
+			var by: float = float(plat.branch_y) - camera
+			marks.draw_polyline(PackedVector2Array([Vector2(bx - 10, by), Vector2(bx - 3, by + 7), Vector2(bx + 3, by + 2), Vector2(bx + 10, by + 12)]), Color("8e433c"), 3.0, true)
 	for piece in debris:
 		var at: Vector2 = piece.pos - Vector2(0, camera)
 		marks.draw_colored_polygon(PackedVector2Array([at + Vector2(-7, -4), at + Vector2(5, -6), at + Vector2(8, 3), at + Vector2(-2, 7)]), Color(0.87, 0.65, 0.42, piece.life / 0.55))
@@ -511,7 +520,7 @@ func configure_terrain() -> void:
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]
 		var tile: Sprite2D = terrain[i]
-		tile.modulate = Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)
+		tile.modulate = Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE))
 		var offset := Vector2.ZERO
 		if game.model.world == 0:
 			tile.texture = PLATFORM; tile.region_enabled = false
@@ -531,5 +540,5 @@ func configure_terrain() -> void:
 		var branch: Sprite2D = branches[i]
 		branch.texture = tile.texture; branch.region_enabled = tile.region_enabled
 		branch.region_rect = tile.region_rect; branch.scale = tile.scale * ratio
-		branch.modulate = Color("ffe093")
+		branch.modulate = Color("c7f3b0") if bool(plat.get("branch_safe", false)) else (Color("ffad9e") if bool(plat.get("branch_fragile", false)) else Color("ffe093"))
 		branch_offsets.append(offset * ratio)

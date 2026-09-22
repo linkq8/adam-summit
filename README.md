@@ -2,7 +2,7 @@
 
 لعبة قفز ثنائية الأبعاد للعائلة: اجمع النجوم واصعد إلى قمة المرحلة.
 
-**[تحميل النسخة التجريبية 0.8.5](https://github.com/linkq8/adam-summit/releases/tag/v0.8.5)**
+**[تحميل النسخة التجريبية 0.8.6](https://github.com/linkq8/adam-summit/releases/tag/v0.8.6)**
 
 - خمسة عوالم، ثلاث مراحل لكل عالم، وثلاثة مستويات صعوبة.
 - الهواتف والأجهزة اللوحية: لاعب واحد وتحريك بالسحب بالإصبع.
@@ -87,3 +87,8 @@ Version 0.8.4 makes the single-player phone playfield edge-to-edge and removes t
 - The movement guide fades out during normal play and returns briefly when useful.
 - A subtle landing marker helps phone players judge where a descending jump will land.
 - Gameplay physics, scoring, and TV multiplayer behavior are unchanged.
+
+
+## Version 0.8.6
+
+Stage 1-1 now has smaller main platforms, a wider range of jump heights, and more than twenty additional route surfaces. Mud can be skirted on its clear edge or bypassed on a raised side route. Seven new coral platforms break on first contact, and every one has a permanent green alternative so the climb cannot become a dead end. These geometry changes apply only to the first stage.

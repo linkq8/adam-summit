@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.6 first-stage competitive route
+
+Only stage 1-1 changes. Its main landings are smaller and use an eight-gap height rhythm from 82 to 116 units. Twenty-plus additional side surfaces create more route decisions without changing the 52-step save/progress structure. Raised routes are clamped against the previous and next landing so all three difficulty variants remain physically reachable.
+
+Seven coral one-contact platforms disappear after launching the player. Each has a permanent green alternate landing, and a simulation reaches the summit even when all seven main surfaces begin destroyed. The two mud encounters affect only their painted centre, leaving a clear edge, and each also has a raised bypass. The new route, mud contact area and fallback geometry are confined to level 0.
+
 ## v0.8.5 mobile play polish
 
 The phone HUD is shorter and the instruction pill floats over the stage, then hides after the opening seconds and returns briefly at spaced intervals. This exposes more of the lowest reachable platform without removing guidance. During descent, a soft landing spot estimates the current trajectory and marks the reachable surface under the player; it changes with horizontal movement and does not alter physics or scoring.
