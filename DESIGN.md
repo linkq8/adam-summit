@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.7 smaller opening landings and endless climb
+
+Stage 1-1 now uses 164–200 unit base widths by difficulty and a 75–125 unit rise pattern. Its steering gate pairs retain a shorter 84-unit rise to keep their required lateral switches reachable. Three violet platforms disappear as soon as Adam touches them and do not launch him upward. Each has a permanent green bypass, while the existing coral one-use surfaces still bounce before breaking.
+
+The new solo Endless Climb generates 52 future platforms ahead, then recycles old ones in 16-platform batches, so memory remains bounded. Widths contract and rises increase gradually toward physics-safe limits. Moving and instant-collapse platforms recur throughout the course. A safe branch accompanies every immediate-collapse platform. Falling below the highest achieved landing ends the run without rescue; the score is the maximum vertical height, and the device stores a local best. Endless runs do not change adventure progress or the saved adventure journey.
+
 ## v0.8.6 first-stage competitive route
 
 Only stage 1-1 changes. Its main landings are smaller and use an eight-gap height rhythm from 82 to 116 units. Twenty-plus additional side surfaces create more route decisions without changing the 52-step save/progress structure. Raised routes are clamped against the previous and next landing so all three difficulty variants remain physically reachable.

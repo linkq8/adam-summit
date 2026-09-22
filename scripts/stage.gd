@@ -24,6 +24,7 @@ var terrain: Array[Sprite2D] = []
 var branches: Array[Sprite2D] = []
 var styles: Dictionary = {}
 var configured_model: RefCounted
+var configured_base := -1
 var offsets: Array[Vector2] = []
 var branch_offsets: Array[Vector2] = []
 var old_frame := -1
@@ -72,7 +73,7 @@ func _process(dt: float) -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
 		return
 	var p: Dictionary = game.model.players[index]
-	if configured_model != game.model: configure_terrain()
+	if configured_model != game.model or configured_base != game.model.endless_base: configure_terrain()
 	var camera := camera_for(p)
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]
@@ -251,7 +252,7 @@ func _draw() -> void:
 		if plat.checkpoint and i > 0 and i < Model.STEPS:
 			draw_line(Vector2(x - w * 0.36, y), Vector2(x - w * 0.36, y - 40), Color("78573b"), 3)
 			draw_colored_polygon(PackedVector2Array([Vector2(x - w * 0.36, y - 40), Vector2(x - w * 0.36 + 24, y - 34), Vector2(x - w * 0.36, y - 24)]), Color("f6ca5d"))
-		if i > 0 and i < Model.STEPS and not player.collected.has(i):
+		if not model.endless and i > 0 and i < Model.STEPS and not player.collected.has(i):
 			star(Vector2(x, y - 55 + sin(time * 2.5 + i) * 4), 13)
 		if plat.enemy:
 			draw_creature(Vector2(model.enemy_x(i), y), model.world)
@@ -263,7 +264,7 @@ func _draw() -> void:
 			draw_arc(orb, 15, 0, TAU, 32, tint.lightened(0.3), 2, true)
 			draw_arc(orb + Vector2(-2, -2), 9, PI, PI * 1.45, 12, Color("fffbea"), 3, true)
 			for dx in [-4, 4]: draw_circle(orb + Vector2(dx, 2), 1.8, Color("396368"))
-		if i == Model.STEPS:
+		if i == Model.STEPS and not model.endless:
 			draw_finish(Vector2(x, y))
 		if plat.has("branch_x"):
 			var bx: float = plat.branch_x
@@ -271,7 +272,7 @@ func _draw() -> void:
 			if model.branch_exists(index, i):
 				draw_circle(Vector2(bx, by - 8), 5, Color("fff1bc"))
 				if bool(plat.get("shortcut", false)): draw_shortcut_marker(Vector2(bx, by - 30))
-			if not player.branch_collected.has(i):
+			if not model.endless and not player.branch_collected.has(i):
 				for bonus in range(3): star(Vector2(bx + (bonus - 1) * 17, by - 48 - (8 if bonus == 1 else 0)), 8)
 	if not game.tv:
 		var landing := predicted_landing(player)
@@ -286,7 +287,7 @@ func _draw() -> void:
 			if at.y < -45 or at.y > view_height + 45: continue
 			draw_circle(at, 39, Color(0.31, 0.93, 0.89, 0.13))
 			atlas_item(self, 0, at, 76)
-	for power in range(3):
+	for power in range(0 if model.endless else 3):
 		if player.powers_taken.has(power): continue
 		var at: Vector2 = model.power_position(power) - Vector2(0, camera)
 		if at.y < -40 or at.y > view_height + 40: continue
@@ -309,7 +310,7 @@ func _draw() -> void:
 		draw_arc(center + Vector2(0, 5), 69, -PI * 0.85, PI * 0.15, 24, Color("ef8a67"), 5, true)
 	if model.surprise_mode and player.inventory >= 0:
 		draw_item(center + Vector2(49, -12), int(player.inventory), 0.72)
-	for id in range(3):
+	for id in range(0 if model.endless else 3):
 		if not player.secrets.has(id):
 			var pos: Vector2 = model.secret_position(id) - Vector2(0, camera)
 			if pos.y > -60 and pos.y < view_height:
@@ -375,7 +376,11 @@ func draw_platform_marks() -> void:
 		for offset in offsets:
 			var at := Vector2(x + plat.w * offset, y + 1)
 			marks.draw_polyline(PackedVector2Array([at, at + Vector2(-5, 7), at + Vector2(4, 12), at + Vector2(-2, 20)]), Color("744738"), 2.5, true)
-		if bool(plat.get("instant_break", false)):
+		if bool(plat.get("drop_on_contact", false)):
+			var warning := Vector2(x, y - 30)
+			marks.draw_polyline(PackedVector2Array([warning + Vector2(-10, -6), warning, warning + Vector2(10, -6)]), Color("7b326e"), 4.0, true)
+			marks.draw_line(warning + Vector2(0, -21), warning + Vector2(0, -7), Color("7b326e"), 3.0, true)
+		elif bool(plat.get("instant_break", false)):
 			for arrow in [-1, 1]:
 				var warning := Vector2(x + arrow * 17, y - 28)
 				marks.draw_polyline(PackedVector2Array([warning + Vector2(-5, -4), warning, warning + Vector2(5, -4)]), Color("9b473c"), 3.0, true)
@@ -515,12 +520,13 @@ func camera_for(p: Dictionary) -> float:
 
 func configure_terrain() -> void:
 	configured_model = game.model
+	configured_base = game.model.endless_base
 	ink_cache_seed = -1
 	offsets.clear(); branch_offsets.clear()
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]
 		var tile: Sprite2D = terrain[i]
-		tile.modulate = Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE))
+		tile.modulate = Color("e998d0") if bool(plat.get("drop_on_contact", false)) else (Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)))
 		var offset := Vector2.ZERO
 		if game.model.world == 0:
 			tile.texture = PLATFORM; tile.region_enabled = false

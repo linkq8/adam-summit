@@ -27,6 +27,10 @@ var costume := 0
 var backpack := 0
 var cooperative := false
 var surprise_mode := false
+var endless_mode := false
+var endless_best := 0
+var endless_previous_players := 1
+var endless_previous_remote := -1
 var preview_outfit := 0
 var preview_pack := 0
 var guide_label: Label
@@ -321,6 +325,10 @@ func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0
 	return sprite
 
 func show_lobby() -> void:
+	if endless_mode:
+		endless_mode = false
+		player_count = endless_previous_players
+		remote_player = endless_previous_remote
 	if tv: show_tv_lobby(); return
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
@@ -331,7 +339,8 @@ func show_lobby() -> void:
 	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 214 - shift / 2), 245 - shift)
 	box(modal, Rect2(r.position + Vector2(0, 343 - shift), Vector2(r.size.x, r.size.y - 343 + shift)), Color("123f40"), Color.TRANSPARENT, 24)
 	button(modal, "ابدأ المغامرة", Rect2(r.position + Vector2(18, 364 - shift), Vector2(r.size.x - 36, 64)), begin_adventure, true).grab_focus()
-	button(modal, Worlds.title(level), Rect2(r.position + Vector2(18, 443 - shift), Vector2(r.size.x - 36, 56)), show_worlds)
+	button(modal, "المرحلة %d–%d" % [level / 3 + 1, level % 3 + 1], Rect2(r.position + Vector2(18, 443 - shift), Vector2((r.size.x - 45) * 0.52, 56)), show_worlds)
+	button(modal, "صعود لا نهائي", Rect2(r.position + Vector2(27 + (r.size.x - 45) * 0.52, 443 - shift), Vector2((r.size.x - 45) * 0.48, 56)), start_endless)
 	button(modal, "ملابس آدم", Rect2(r.position + Vector2(18, 513 - shift), Vector2(r.size.x - 36, 54)), func(): show_wardrobe(true))
 	button(modal, DIFFICULTIES[difficulty], Rect2(r.position + Vector2(18, 581 - shift), Vector2(r.size.x - 36, 54)), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby())
 	button(modal, "الإعدادات", Rect2(r.position + Vector2(18, 649 - shift), Vector2((r.size.x - 48) / 2, 54)), func(): settings_return = "lobby"; show_settings())
@@ -343,6 +352,7 @@ func controller_text(i: int) -> String:
 	return "يد %d متّصلة ✓" % (i + 1) if slots[i] in Input.get_connected_joypads() else "الزر السفلي للانضمام"
 
 func begin_adventure() -> void:
+	endless_mode = false
 	if remote_player >= player_count: remote_player = 0
 	if tv and mobile:
 		var connected := Input.get_connected_joypads()
@@ -364,6 +374,19 @@ func begin_adventure() -> void:
 	else:
 		start_race()
 
+func start_endless() -> void:
+	if not endless_mode:
+		endless_previous_players = player_count
+		endless_previous_remote = remote_player
+	endless_mode = true
+	player_count = 1
+	if tv and mobile and remote_player < 0 and not slots[0] in Input.get_connected_joypads():
+		remote_player = 0
+	if not tutorial_seen and not demo:
+		show_tutorial()
+	else:
+		start_race()
+
 func show_tutorial() -> void:
 	state = "tutorial"
 	clear_modal()
@@ -377,7 +400,7 @@ func show_tutorial() -> void:
 	var tv_help := "القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة"
 	if surprise_mode:
 		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يظهر كلطخات عشوائية على شاشة المنافس"
-	label(modal, (tv_help if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
+	label(modal, ("صعود لا نهائي للاعب واحد\nتحرّك لتختار الأرضية التالية\nكلما ارتفعت، صغرت الأرضيات\nسقوط واحد ينهي المحاولة" if endless_mode else (tv_help if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان")), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
 	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
 	help_time = 0
 	play_sound("help")
@@ -439,9 +462,9 @@ func build_hud() -> void:
 func start_race() -> void:
 	menu_art = null; world_art = null
 	if sounds.has("help"): sounds.help.stop()
-	player_count = clampi(player_count, 1, 4) if tv else 1
+	player_count = 1 if endless_mode else (clampi(player_count, 1, 4) if tv else 1)
 	easy = difficulty == 0
-	model = Model.new(easy, player_count, level, difficulty)
+	model = Model.new(easy, player_count, level, difficulty, endless_mode)
 	model.cooperative = tv and player_count > 1 and cooperative
 	model.surprise_mode = tv and player_count > 1 and surprise_mode
 	select_music()
@@ -473,16 +496,17 @@ func _physics_process(dt: float) -> void:
 			directions = []
 			for i in range(player_count): directions.append(model.autopilot(i))
 		handle_game_events(model.step(dt, directions))
-		if model.complete(): show_finish()
+		if model.endless and model.ended: show_endless_finish()
+		elif model.complete(): show_finish()
 		save_timer += dt
 		if save_timer > 5: save_timer = 0; save_journey()
 	hud_time += dt
 	if hud.visible and hud_time >= 0.1:
 		hud_time = 0.0
 		for i in range(player_count):
-			star_labels[i].text = "★ %d" % model.players[i].stars
-			height_labels[i].text = "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
-			progress_bars[i].fill.size.x = maxf(1.0, progress_bars[i].width * model.progress(i))
+			star_labels[i].text = "∞" if model.endless else "★ %d" % model.players[i].stars
+			height_labels[i].text = "ارتفاع %d • الأفضل %d" % [model.endless_score, endless_best] if model.endless else "%d%%   ❀ %d/3" % [roundi(model.progress(i) * 100), model.players[i].secrets.size()]
+			progress_bars[i].fill.size.x = maxf(1.0, progress_bars[i].width * (fmod(float(model.endless_score), 2000.0) / 2000.0 if model.endless else model.progress(i)))
 			if surprise_mode and i < item_labels.size():
 				var held_item := int(model.players[i].inventory)
 				item_labels[i].text = ("A  " + Model.item_name(held_item)) if held_item >= 0 else "A  —"
@@ -505,7 +529,7 @@ func _physics_process(dt: float) -> void:
 			var hint_window: bool = model.elapsed < 8.0 or fmod(model.elapsed, 18.0) < 4.0
 			guide_label.visible = abilities != "" or hint_window
 			if is_instance_valid(guide_panel): guide_panel.visible = guide_label.visible
-			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed / 18.0) % 2 == 1 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")
+			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if level == 0 and int(model.elapsed / 18.0) % 2 == 1 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع"))
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
 
 func handle_game_events(events: Array[Dictionary]) -> void:
@@ -727,7 +751,27 @@ func show_finish() -> void:
 	build_finish()
 	print("RACE_FINISHED players=%d level=%d time=%.3f" % [player_count, level, model.elapsed])
 
+func show_endless_finish() -> void:
+	state = "finish"
+	endless_best = maxi(endless_best, model.endless_score)
+	if not demo: save_options()
+	play_sound("rescue")
+	build_finish()
+
+func build_endless_finish() -> void:
+	clear_modal()
+	var r := menu_rect
+	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
+	label(modal, "انتهت المحاولة", Rect2(r.position + Vector2(10, 35), Vector2(r.size.x - 20, 65)), 35)
+	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 230), 220)
+	label(modal, "ارتفاعك %d\nأفضل ارتفاع %d" % [model.endless_score, endless_best], Rect2(r.position + Vector2(10, 350), Vector2(r.size.x - 20, 110)), 28)
+	button(modal, "حاول مجددًا", Rect2(r.position + Vector2(25, r.size.y - 162), Vector2(r.size.x - 50, 64)), start_race, true).grab_focus()
+	button(modal, "الرئيسية", Rect2(r.position + Vector2(25, r.size.y - 82), Vector2(r.size.x - 50, 54)), show_lobby)
+
 func build_finish() -> void:
+	if model.endless:
+		build_endless_finish()
+		return
 	clear_modal()
 	var r := menu_rect
 	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
@@ -753,11 +797,12 @@ func build_finish() -> void:
 	button(modal, "الرئيسية", Rect2(r.position + Vector2(25, r.size.y - 82), Vector2(r.size.x - 50, 54)), show_lobby)
 
 func save_journey() -> void:
-	if player_count == 1 and state in ["racing", "paused", "countdown"] and not demo:
+	if player_count == 1 and not endless_mode and state in ["racing", "paused", "countdown"] and not demo:
 		saved_game = model.snapshot()
 		save_options()
 
 func restore_journey() -> void:
+	endless_mode = false
 	var restored = Model.restore(saved_game)
 	if restored == null: saved_game.clear(); show_lobby(); return
 	player_count = 1
@@ -795,10 +840,11 @@ func load_options() -> void:
 	tutorial_seen = bool(data.get("tutorial", false)) and int(data.get("controls_version", 0)) == 1
 	if data.get("saved") is Dictionary: saved_game = data.saved
 	if data.get("records") is Dictionary: records = data.records
+	endless_best = maxi(0, int(data.get("endless_best", 0)))
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -1026,6 +1072,7 @@ func show_tv_lobby() -> void:
 		var at := Vector2(360 - (player_count - 1) * spacing / 2 + i * spacing, 496 - (18 if i % 2 == 0 else 0))
 		var avatar := portrait(modal, player_outfits[i] if player_count > 1 else costume, at, height, 0, player_packs[i] if player_count > 1 else backpack)
 	button(modal, "ابدأ المغامرة", Rect2(792, 232, 380, 76), begin_adventure, true).grab_focus()
+	button(modal, "صعود لا نهائي", Rect2(792, 618, 380, 52), start_endless)
 	button(modal, "العالم: " + Worlds.WORLDS[level / 3], Rect2(792, 327, 380, 59), show_worlds)
 	button(modal, "اللاعبون والملابس · %d" % player_count, Rect2(792, 402, 380, 59), show_players)
 	button(modal, DIFFICULTIES[difficulty], Rect2(792, 477, 183, 57), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())

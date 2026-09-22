@@ -26,6 +26,7 @@ const STEERING_GATES := [1, 13, 19, 29, 45]
 const FIRST_STAGE_FRAGILE := [6, 12, 18, 28, 34, 42, 47]
 const FIRST_STAGE_MUD := [21, 36]
 const FIRST_STAGE_EXTRA_ROUTES := [4, 15, 23, 32, 41, 49]
+const FIRST_STAGE_DROP := [12, 28, 42]
 const ITEM_SHIELD := 0
 const ITEM_INK := 1
 const ITEM_STICKY := 2
@@ -42,13 +43,44 @@ var difficulty := 0
 var player_count := 2
 var cooperative := false
 var surprise_mode := false
+var endless := false
+var endless_base := 0
+var endless_score := 0
+var ended := false
 
-func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: int = -1) -> void:
+func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: int = -1, infinite: bool = false) -> void:
 	easy = assisted
-	player_count = clampi(count, 1, 4)
+	endless = infinite
+	player_count = 1 if endless else clampi(count, 1, 4)
 	level = clampi(chapter, 0, Worlds.COUNT - 1)
 	world = level / 3
 	difficulty = (0 if assisted else 1) if challenge < 0 else clampi(challenge, 0, 2)
+	if endless:
+		for step_index in range(STEPS + 1):
+			platforms.append(_endless_platform(step_index, START_Y if step_index == 0 else float(platforms[-1].y)))
+	else:
+		_build_adventure_platforms()
+	_configure_spring_profiles()
+	for i in range(player_count):
+		players.append({
+			"p": Vector2(280, START_Y), "v": Vector2.ZERO,
+			"checkpoint": 0, "highest": 0, "landed": 0, "stars": 0,
+			"branch_hits": {}, "branch_collected": {}, "powers_taken": {},
+			"shield": 0.0, "magnet": 0.0, "bubble": false,
+			"platform_hits": [], "collected": {}, "secrets": {}, "boxes_taken": {},
+			"camera": 0.0, "finish": -1.0, "face": 1.0,
+			"invulnerable": 0.0, "attack_immunity": 0.0,
+			"rescues": 0, "squash": 0.0, "stun": 0.0, "trail": [],
+			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0, "pending_jump_target": -1, "pending_jump_target_x": 280.0,
+			"hold_kind": "", "pending_delay": 0.0, "pending_kind": "", "boost_jumps": 0,
+			"launch_target": -1, "launch_target_x": 280.0,
+			"ink": 0.0, "invisible": 0.0, "landing_flash": 0.0,
+			"ink_seed": 0, "inventory": -1
+		})
+		players[i].platform_hits.resize(platforms.size())
+		players[i].platform_hits.fill(0)
+
+func _build_adventure_platforms() -> void:
 	var stage_kind := level % 3
 	var route: Array = Worlds.ROUTES[level]
 	var chapter_gap: float = [94.0, 99.0, 102.0][stage_kind]
@@ -140,25 +172,32 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 		_configure_first_stage()
 	platforms[STEPS].x = 280.0
 	platforms[STEPS].w = 300.0
-	_configure_spring_profiles()
-	for i in range(player_count):
-		players.append({
-			"p": Vector2(280, START_Y), "v": Vector2.ZERO,
-			"checkpoint": 0, "highest": 0, "landed": 0, "stars": 0,
-			"branch_hits": {}, "branch_collected": {}, "powers_taken": {},
-			"shield": 0.0, "magnet": 0.0, "bubble": false,
-			"platform_hits": [], "collected": {}, "secrets": {}, "boxes_taken": {},
-			"camera": 0.0, "finish": -1.0, "face": 1.0,
-			"invulnerable": 0.0, "attack_immunity": 0.0,
-			"rescues": 0, "squash": 0.0, "stun": 0.0, "trail": [],
-			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0, "pending_jump_target": -1, "pending_jump_target_x": 280.0,
-			"hold_kind": "", "pending_delay": 0.0, "pending_kind": "", "boost_jumps": 0,
-			"launch_target": -1, "launch_target_x": 280.0,
-			"ink": 0.0, "invisible": 0.0, "landing_flash": 0.0,
-			"ink_seed": 0, "inventory": -1
-		})
-		players[i].platform_hits.resize(STEPS + 1)
-		players[i].platform_hits.fill(0)
+
+func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
+	if absolute_index == 0:
+		return {"x": 280.0, "y": START_Y, "w": 490.0, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
+	# Approach the physics-safe limits gradually without a hard difficulty step.
+	var tier: float = float(absolute_index) / (float(absolute_index) + 100.0)
+	var gap: float = [78.0, 93.0, 105.0, 86.0, 113.0, 88.0][absolute_index % 6] + tier * 12.0
+	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7]
+	var previous_x: float = float(platforms[-1].x)
+	var lane: float = clampf(desired_lane, previous_x - 145.0, previous_x + 145.0)
+	var width: float = maxf(104.0, [210.0, 175.0, 155.0, 185.0][absolute_index % 4] - tier * 49.0)
+	var plat: Dictionary = {"x": lane, "y": previous_y - gap, "w": width, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
+	if absolute_index > 8 and absolute_index % 11 == 6:
+		plat.durability = 1
+		plat.drop_on_contact = true
+		plat.branch_x = clampf(lane + (110.0 if lane < 280.0 else -110.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
+		plat.branch_y = plat.y
+		plat.branch_w = 112.0 - tier * 19.0
+		plat.branch_durability = 0
+		plat.branch_safe = true
+	elif absolute_index > 12 and absolute_index % 17 == 9:
+		plat.mud = true
+		plat.mud_half_width = width * 0.24
+	elif absolute_index > 18 and absolute_index % 13 == 4:
+		plat.moving = true
+	return plat
 
 func _clear_platform_hazards(plat: Dictionary) -> void:
 	plat.durability = 0
@@ -174,30 +213,32 @@ func _configure_first_stage() -> void:
 	# varied rises and several side surfaces. The number of simulation steps is
 	# unchanged, so saves/progress stay compatible, while the visible landing
 	# choices increase substantially.
-	var gaps := [82.0, 106.0, 90.0, 116.0, 86.0, 100.0, 111.0, 88.0]
+	var gaps := [75.0, 117.0, 84.0, 125.0, 79.0, 109.0, 122.0, 88.0]
 	var height := START_Y
 	for i in range(1, STEPS + 1):
-		height -= gaps[(i - 1) % gaps.size()]
+		var gap: float = 84.0 if i - 1 in STEERING_GATES else gaps[(i - 1) % gaps.size()]
+		height -= gap
 		platforms[i].y = height
 		if platforms[i].has("branch_x"):
 			# The original opening-stage forks were level with the main route.
 			platforms[i].branch_y = height
 		if i < STEPS:
-			var base_width: float = [224.0, 202.0, 182.0][difficulty]
+			var base_width: float = [200.0, 180.0, 164.0][difficulty]
 			var width_scale: float = [1.0, 0.82, 0.70, 0.88, 0.76][i % 5]
 			platforms[i].w = base_width * width_scale
 			if platforms[i].checkpoint:
-				platforms[i].w = [232.0, 212.0, 196.0][difficulty]
+				platforms[i].w = [216.0, 196.0, 180.0][difficulty]
 	# Keep the mandatory steering pairs compact and clearly separated.
 	for gate in STEERING_GATES:
 		for offset in range(2):
-			platforms[gate + offset].w = [150.0, 138.0, 126.0][difficulty]
+			platforms[gate + offset].w = [140.0, 128.0, 116.0][difficulty]
 	# First-contact crumble platforms always have a permanent side landing.
 	for i in FIRST_STAGE_FRAGILE:
 		var plat: Dictionary = platforms[i]
 		_clear_platform_hazards(plat)
 		plat.durability = 1
 		plat.instant_break = true
+		plat.drop_on_contact = i in FIRST_STAGE_DROP
 		_add_first_stage_branch(i, true, 16.0 + (i % 3) * 5.0)
 	# Mud can be skirted on the platform edge or bypassed using a raised route.
 	for i in FIRST_STAGE_MUD:
@@ -215,12 +256,12 @@ func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
 	var plat: Dictionary = platforms[i]
 	var main_x: float = float(plat.x)
 	var rise_from_previous: float = float(platforms[i - 1].y) - float(plat.y)
-	var reachable_lift: float = minf(lift, maxf(0.0, 126.0 - rise_from_previous))
+	var reachable_lift: float = minf(lift, maxf(0.0, 136.0 - rise_from_previous))
 	var desired_x: float = 120.0 if main_x >= 280.0 else 440.0
 	var previous_x: float = float(platforms[i - 1].x)
 	var next_x: float = float(platforms[mini(STEPS, i + 1)].x)
-	var reachable_min: float = maxf(100.0, maxf(previous_x - 180.0, next_x - 180.0))
-	var reachable_max: float = minf(460.0, minf(previous_x + 180.0, next_x + 180.0))
+	var reachable_min: float = maxf(100.0, maxf(previous_x - 145.0, next_x - 145.0))
+	var reachable_max: float = minf(460.0, minf(previous_x + 145.0, next_x + 145.0))
 	plat.branch_x = clampf(desired_x, reachable_min, reachable_max)
 	plat.branch_y = float(plat.y) - reachable_lift
 	plat.branch_w = [132.0, 114.0, 98.0][difficulty]
@@ -230,7 +271,7 @@ func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
 	plat.shortcut = true
 
 func _configure_spring_profiles() -> void:
-	for from_index in range(STEPS):
+	for from_index in range(platforms.size() - 1):
 		var profile := spring_profile(from_index)
 		platforms[from_index]["spring_target"] = profile.target
 		platforms[from_index]["spring_scale"] = profile.scale
@@ -238,12 +279,12 @@ func _configure_spring_profiles() -> void:
 		platforms[from_index]["spring_target_y"] = profile.target_y
 
 func spring_profile(from_index: int, launch_y: float = INF, launch_x: float = INF) -> Dictionary:
-	var start := clampi(from_index, 0, STEPS - 1)
+	var start := clampi(from_index, 0, platforms.size() - 2)
 	var source_y: float = platforms[start].y if is_inf(launch_y) else launch_y
 	var source_x: float = platform_x(start, 0.0) if is_inf(launch_x) else launch_x
 	var preferred_advance: int = [2, 2, 3][level % 3]
 	for advance in range(preferred_advance, 1, -1):
-		var target := mini(STEPS, start + advance)
+		var target := mini(platforms.size() - 1, start + advance)
 		if target <= start + 1:
 			continue
 		var surfaces := []
@@ -261,7 +302,7 @@ func spring_profile(from_index: int, launch_y: float = INF, launch_x: float = IN
 			if horizontal_gap <= SPEED * flight_time * 0.88 + landing_allowance:
 				return {"target": target, "target_x": surface.x, "target_y": surface.y, "shortcut": surface.shortcut,
 					"scale": clampf(scale, 1.16, 1.58), "flight_time": flight_time}
-	var fallback := mini(STEPS, start + 2)
+	var fallback := mini(platforms.size() - 1, start + 2)
 	var fallback_rise: float = source_y - platforms[fallback].y
 	var fallback_scale := sqrt(2.0 * GRAVITY * (fallback_rise + SPRING_CLEARANCE[level % 3])) / JUMP
 	return {"target": fallback, "target_x": platform_x(fallback, 0.0), "target_y": platforms[fallback].y, "shortcut": false,
@@ -288,7 +329,11 @@ func enemy_x(i: int) -> float:
 
 func step(dt: float, directions) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
+	if endless and ended:
+		return events
 	elapsed += dt
+	if endless:
+		_extend_endless()
 	for index in range(player_count):
 		var p: Dictionary = players[index]
 		if p.finish >= 0:
@@ -307,11 +352,36 @@ func step(dt: float, directions) -> Array[Dictionary]:
 		p.v.y += GRAVITY * dt
 		p.p += p.v * dt
 		p.p.x = clampf(p.p.x, 24, WIDTH - 24)
+		if endless:
+			endless_score = maxi(endless_score, roundi(START_Y - p.p.y))
 		if p.v.y >= 0:
 			_land_player(index, previous, dt, events)
-		_collect_stage_objects(index, events)
+		if not endless:
+			_collect_stage_objects(index, events)
 		_update_camera_or_rescue(index, dt, events)
 	return events
+
+func _extend_endless() -> void:
+	var p: Dictionary = players[0]
+	if int(p.highest) < 28:
+		return
+	for n in range(16):
+		var absolute_index := endless_base + platforms.size()
+		platforms.append(_endless_platform(absolute_index, float(platforms[-1].y)))
+		p.platform_hits.append(0)
+	for n in range(16):
+		platforms.pop_front()
+		p.platform_hits.pop_front()
+	endless_base += 16
+	for key in ["highest", "landed", "checkpoint", "hold_platform", "launch_target", "pending_jump_target"]:
+		if int(p[key]) >= 0:
+			p[key] = maxi(0, int(p[key]) - 16)
+	var shifted := {}
+	for old_id in p.branch_hits.keys():
+		if int(old_id) >= 16:
+			shifted[int(old_id) - 16] = true
+	p.branch_hits = shifted
+	_configure_spring_profiles()
 
 func _tick_effects(p: Dictionary, dt: float) -> void:
 	for key in ["invulnerable", "shield", "magnet", "stun", "ink", "invisible", "attack_immunity", "landing_flash"]:
@@ -338,7 +408,7 @@ func _hold_on_platform(index: int, dt: float, events: Array[Dictionary]) -> void
 
 func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictionary]) -> void:
 	var p: Dictionary = players[index]
-	for j in range(STEPS, -1, -1):
+	for j in range(platforms.size() - 1, -1, -1):
 		var plat: Dictionary = platforms[j]
 		var main_crossed: bool = previous.y <= plat.y + 0.01 and p.p.y >= plat.y
 		var main_fraction := clampf((plat.y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if main_crossed else 2.0
@@ -352,8 +422,17 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 		var on_branch: bool = not on_main and branch_crossed and branch_exists(index, j) and absf(branch_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + 13
 		if not on_main and not on_branch:
 			continue
+		if on_main and bool(plat.get("drop_on_contact", false)):
+			p.platform_hits[j] += 1
+			events.append({"kind": "crumble", "player": index, "position": Vector2(platform_contact, plat.y), "width": plat.w})
+			# The platform vanishes on impact. Keep the falling velocity and
+			# crossing position so a lower platform may catch an adventure racer.
+			continue
 		var fraction: float = main_fraction if on_main else branch_fraction
 		var landing_y: float = plat.y if on_main else branch_y
+		if endless and j < int(p.highest):
+			_end_endless(events)
+			return
 		p.p.y = landing_y
 		p.launch_target = -1
 		if p.invisible > 0:
@@ -375,7 +454,7 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 					friend.checkpoint = maxi(friend.checkpoint, j)
 					friend.shield = maxf(friend.shield, 5)
 			events.append({"kind": "checkpoint", "player": index})
-		if j == STEPS:
+		if j == STEPS and not endless:
 			p.finish = elapsed - dt + fraction * dt
 			p.v = Vector2.ZERO
 			events.append({"kind": "finish", "player": index})
@@ -417,6 +496,8 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 			p.launch_target = jump_target
 			p.launch_target_x = jump_target_x
 			events.append({"kind": "spring" if spring_launch else "bounce", "player": index, "target": jump_target})
+		if endless:
+			endless_score = maxi(endless_score, roundi(START_Y - minf(landing_y, p.p.y)))
 		return
 
 func _collect_stage_objects(index: int, events: Array[Dictionary]) -> void:
@@ -472,9 +553,21 @@ func _update_camera_or_rescue(index: int, dt: float, events: Array[Dictionary]) 
 	var p: Dictionary = players[index]
 	var target_camera: float = minf(0.0, p.p.y - 345.0)
 	p.camera = lerpf(p.camera, minf(p.camera, target_camera), minf(1, dt * 7))
+	if endless and p.p.y > float(platforms[int(p.highest)].y) + 150.0:
+		_end_endless(events)
+		return
 	if p.p.y > p.camera + 710:
+		if endless:
+			_end_endless(events)
+			return
 		rescue(index)
 		events.append({"kind": "rescue", "player": index})
+
+func _end_endless(events: Array[Dictionary]) -> void:
+	if ended:
+		return
+	ended = true
+	events.append({"kind": "endless_loss", "player": 0, "score": endless_score})
 
 func orb_position(i: int) -> Vector2:
 	return Vector2(platform_x(i) + sin(elapsed * (0.85 if easy else 1.15) + i) * 92, platforms[i].y - 68)
@@ -616,10 +709,12 @@ func progress(index: int) -> float:
 
 func autopilot(index: int) -> float:
 	var p: Dictionary = players[index]
-	var target: int = int(p.launch_target) if int(p.launch_target) > p.landed else mini(STEPS, p.landed + 1)
+	var target: int = int(p.launch_target) if int(p.launch_target) > p.landed else mini(platforms.size() - 1, p.landed + 1)
 	if p.p.y > platforms[target].y + 145:
 		target = p.checkpoint
 	var target_x: float = float(p.launch_target_x) if target == int(p.launch_target) else platform_x(target, elapsed + 0.2)
+	if bool(platforms[target].get("drop_on_contact", false)) and branch_exists(index, target):
+		target_x = float(platforms[target].branch_x)
 	var dx: float = target_x - p.p.x
 	return clampf(dx / 35.0, -1.0, 1.0)
 
