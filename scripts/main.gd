@@ -30,6 +30,7 @@ var surprise_mode := false
 var preview_outfit := 0
 var preview_pack := 0
 var guide_label: Label
+var guide_panel: Panel
 var easy := true
 var low_detail := false
 var tv_native_resolution := false
@@ -221,8 +222,9 @@ func layout_ui() -> void:
 	var available := canvas_size.y - safe_top - safe_bottom
 	var width := minf(490, canvas_size.x - 36)
 	menu_rect = Rect2((canvas_size.x - width) / 2, safe_top + maxf(0, (available - 820) / 2), width, minf(available, 820))
-	var field_top := safe_top + 84
-	var field_bottom := safe_bottom + (18 if tv else 54)
+	var field_top := safe_top + (84 if tv else 72)
+	# The phone hint floats above the playfield instead of reserving a blank band.
+	var field_bottom := safe_bottom + (18 if tv else 12)
 	for i in range(4):
 		var phone_view := not tv
 		var w := canvas_size.x if phone_view else ((canvas_size.x - 32 * (player_count + 1)) / player_count if player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76))
@@ -387,15 +389,16 @@ func build_hud() -> void:
 	item_labels.clear()
 	item_icons.clear()
 	touch_item_button = null
+	guide_panel = null
 	progress_bars.clear()
 	for i in range(player_count):
-		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 66)
-		box(hud, rect, Color(1, 0.99, 0.95, 0.95), Color("fff7df"), 22)
-		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 8), Vector2(78, 46)), 20, Color("a06a20")))
-		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(85, 7), Vector2(maxf(90, rect.size.x - 95), 46)), 16))
+		var rect := Rect2(views[i].position.x, safe_top, views[i].size.x, 58)
+		box(hud, rect, Color(1, 0.99, 0.95, 0.93), Color("fff7df"), 20)
+		star_labels.append(label(hud, "★ 0", Rect2(rect.position + Vector2(8, 5), Vector2(78, 42)), 19, Color("a06a20")))
+		height_labels.append(label(hud, "", Rect2(rect.position + Vector2(85, 4), Vector2(maxf(90, rect.size.x - 95), 42)), 16))
 		var bar_width := rect.size.x - 40
-		box(hud, Rect2(rect.position + Vector2(20, 57), Vector2(bar_width, 6)), Color(0.09, 0.27, 0.27, 0.13), Color.TRANSPARENT, 3)
-		var progress_fill := box(hud, Rect2(rect.position + Vector2(20, 57), Vector2(1, 6)), [BLUE, ORANGE, Color("4a9c62"), Color("9968b4")][i], Color.TRANSPARENT, 3)
+		box(hud, Rect2(rect.position + Vector2(20, 50), Vector2(bar_width, 5)), Color(0.09, 0.27, 0.27, 0.13), Color.TRANSPARENT, 3)
+		var progress_fill := box(hud, Rect2(rect.position + Vector2(20, 50), Vector2(1, 5)), [BLUE, ORANGE, Color("4a9c62"), Color("9968b4")][i], Color.TRANSPARENT, 3)
 		progress_bars.append({"fill": progress_fill, "width": bar_width})
 		if player_count > 1:
 			var player_tag := label(hud, "اللاعب %d" % (i + 1), Rect2(rect.position.x, rect.position.y + 64, rect.size.x * 0.48, 24), 16, Color("fff7dc"))
@@ -415,7 +418,7 @@ func build_hud() -> void:
 			item_label.add_theme_constant_override("outline_size", 4)
 			item_label.visible = surprise_mode
 			item_labels.append(item_label)
-	var pause_btn := button(hud, "Ⅱ", Rect2(canvas_size.x - 67, safe_top + 5, 51, 55), pause_race)
+	var pause_btn := button(hud, "Ⅱ", Rect2(canvas_size.x - 60, safe_top + 5, 47, 48), pause_race)
 	pause_btn.focus_mode = Control.FOCUS_NONE
 	clock_label = label(hud, "", Rect2(canvas_size.x / 2 - 40, safe_top + 64, 80, 30), 16)
 	clock_label.visible = tv and player_count > 1
@@ -424,8 +427,8 @@ func build_hud() -> void:
 	if not tv:
 		var has_touch_action := mobile and surprise_mode and player_count > 1
 		var guide_width := canvas_size.x - (136 if has_touch_action else 40)
-		box(hud, Rect2(20, canvas_size.y - safe_bottom - 46, guide_width, 44), Color(1, 0.98, 0.92, 0.95), Color.TRANSPARENT, 18)
-		guide_label = label(hud, "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع", Rect2(25, canvas_size.y - safe_bottom - 46, guide_width - 10, 44), 17)
+		guide_panel = box(hud, Rect2(20, canvas_size.y - safe_bottom - 40, guide_width, 34), Color(1, 0.98, 0.92, 0.90), Color.TRANSPARENT, 14)
+		guide_label = label(hud, "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع", Rect2(25, canvas_size.y - safe_bottom - 40, guide_width - 10, 34), 15)
 		if has_touch_action:
 			touch_item_button = button(hud, "أداة", Rect2(canvas_size.x - 106, canvas_size.y - safe_bottom - 78, 86, 76), use_touch_item, true)
 			touch_item_button.add_theme_font_size_override("font_size", 17)
@@ -499,7 +502,10 @@ func _physics_process(dt: float) -> void:
 			if p.shield > 0: abilities += "درع %dث  " % ceili(p.shield)
 			if p.magnet > 0: abilities += "مغناطيس %dث  " % ceili(p.magnet)
 			if p.bubble: abilities += "فقاعة إنقاذ ✓"
-			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed) % 12 > 5 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")
+			var hint_window: bool = model.elapsed < 8.0 or fmod(model.elapsed, 18.0) < 4.0
+			guide_label.visible = abilities != "" or hint_window
+			if is_instance_valid(guide_panel): guide_panel.visible = guide_label.visible
+			guide_label.text = abilities if abilities != "" else ("نقطة: قفزة • نقطتان: قفزتان قبل الكسر" if int(model.elapsed / 18.0) % 2 == 1 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
 
 func handle_game_events(events: Array[Dictionary]) -> void:

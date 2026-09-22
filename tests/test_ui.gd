@@ -68,6 +68,15 @@ func run() -> void:
 	check(not game.stages[0].draws_panel_background(), "Phone uses one seamless full-screen background")
 	game.countdown = 0.001
 	game._physics_process(1.0 / 60)
+	check(is_instance_valid(game.guide_panel) and game.guide_panel.size.y <= 36, "Phone guidance uses a compact overlay")
+	game.model.elapsed = 9.0; game._physics_process(0.11)
+	check(not game.guide_panel.visible, "Phone guidance clears the playfield after onboarding")
+	game.model.elapsed = 0.0
+	var preview_player: Dictionary = game.model.players[0].duplicate(true)
+	preview_player.p = Vector2(game.model.platform_x(0), game.model.platforms[0].y - 150.0)
+	preview_player.v = Vector2(0, 180)
+	preview_player.highest = 0
+	check(game.stages[0].predicted_landing(preview_player) != Vector2.INF, "Descending player gets a reachable landing marker")
 	var location: Vector2 = game.model.players[0].p
 	var original_model = game.model
 	root.size = Vector2i(1000, 800)

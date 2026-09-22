@@ -1,5 +1,9 @@
 # Adam’s Summit design and implementation
 
+## v0.8.5 mobile play polish
+
+The phone HUD is shorter and the instruction pill floats over the stage, then hides after the opening seconds and returns briefly at spaced intervals. This exposes more of the lowest reachable platform without removing guidance. During descent, a soft landing spot estimates the current trajectory and marks the reachable surface under the player; it changes with horizontal movement and does not alter physics or scoring.
+
 ## v0.8.4 seamless phone playfield
 
 The single-player phone playfield now spans the complete canvas width and leaves the full-screen scene background visible behind its platforms. Previously, the stage node repainted a differently cropped background inside its clipped 516-unit playfield, which formed the distinct rectangle visible in the iPhone screenshot. Multiplayer TV retains an independent background in each split-screen panel.

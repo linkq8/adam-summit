@@ -154,6 +154,35 @@ func atlas_item(canvas: CanvasItem, cell: int, at: Vector2, size: float, alpha: 
 func draws_panel_background() -> bool:
 	return game != null and game.tv and game.player_count > 1
 
+func predicted_landing(player: Dictionary) -> Vector2:
+	if player.v.y < 70.0:
+		return Vector2.INF
+	var best_time := INF
+	var best := Vector2.INF
+	var first: int = maxi(0, int(player.highest) - 1)
+	var last: int = mini(game.model.platforms.size(), int(player.highest) + 6)
+	for i in range(first, last):
+		var plat: Dictionary = game.model.platforms[i]
+		var surfaces: Array[Dictionary] = []
+		if game.model.platform_exists(index, i):
+			surfaces.append({"y": float(plat.y), "x": game.model.platform_x(i), "w": float(plat.w), "moving": bool(plat.moving), "i": i})
+		if plat.has("branch_x") and not player.branch_hits.has(i):
+			surfaces.append({"y": float(plat.get("branch_y", plat.y)), "x": float(plat.branch_x), "w": float(plat.branch_w), "moving": false, "i": i})
+		for surface in surfaces:
+			var fall: float = float(surface.y) - player.p.y
+			if fall < 24.0 or fall > 330.0:
+				continue
+			var velocity_y: float = float(player.v.y)
+			var flight: float = (-velocity_y + sqrt(velocity_y * velocity_y + 2.0 * Model.GRAVITY * fall)) / Model.GRAVITY
+			if flight <= 0.0 or flight >= best_time:
+				continue
+			var projected_x: float = clampf(float(player.p.x) + float(player.v.x) * flight, 16.0, Model.WIDTH - 16.0)
+			var surface_x: float = game.model.platform_x(int(surface.i), game.model.elapsed + flight) if bool(surface.moving) else float(surface.x)
+			if absf(projected_x - surface_x) <= float(surface.w) * 0.5 + 13.0:
+				best_time = flight
+				best = Vector2(projected_x, float(surface.y))
+	return best
+
 func star(at: Vector2, radius: float, tint: Color = Color("ffce4c")) -> void:
 	icon(0, at, radius * 64.0 / 26.0, Color(1, 1, 1, tint.a))
 
@@ -243,6 +272,12 @@ func _draw() -> void:
 				if bool(plat.get("shortcut", false)): draw_shortcut_marker(Vector2(bx, by - 30))
 			if not player.branch_collected.has(i):
 				for bonus in range(3): star(Vector2(bx + (bonus - 1) * 17, by - 48 - (8 if bonus == 1 else 0)), 8)
+	if not game.tv:
+		var landing := predicted_landing(player)
+		if landing != Vector2.INF:
+			var landing_at := landing - Vector2(0, camera + 5)
+			draw_ellipse(landing_at, 27, 7, Color(1.0, 0.91, 0.46, 0.24), true)
+			draw_arc(landing_at, 11, 0, TAU, 24, Color(1.0, 0.96, 0.72, 0.86), 2.0, true)
 	if model.surprise_mode:
 		for box_id in range(Model.BOX_STEPS.size()):
 			if player.boxes_taken.has(box_id): continue
