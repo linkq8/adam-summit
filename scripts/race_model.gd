@@ -170,8 +170,32 @@ func _build_adventure_platforms() -> void:
 				platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
 	if level == 0:
 		_configure_first_stage()
+	else:
+		# Narrow every adventure landing while keeping start and summit broad.
+		for i in range(1, STEPS):
+			var plat: Dictionary = platforms[i]
+			if not (i in STEERING_GATES or i - 1 in STEERING_GATES):
+				plat.w = maxf(96.0, float(plat.w) * (0.94 if plat.checkpoint else 0.92))
+			if plat.has("branch_x"):
+				plat.branch_w = maxf(78.0, float(plat.branch_w) * 0.94)
+	_configure_mud_escapes()
 	platforms[STEPS].x = 280.0
 	platforms[STEPS].w = 300.0
+
+func _configure_mud_escapes() -> void:
+	for i in range(1, STEPS):
+		var plat: Dictionary = platforms[i]
+		if not plat.mud:
+			continue
+		# Clear landing strips on both edges and a permanent raised bypass.
+		plat.moving = false
+		plat.mud_half_width = float(plat.w) * 0.16
+		if not plat.has("branch_x"):
+			_add_first_stage_branch(i, true, 18.0)
+			plat.shortcut = false
+		else:
+			plat.branch_durability = 0
+			plat.branch_safe = true
 
 func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 	if absolute_index == 0:
@@ -182,19 +206,24 @@ func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7]
 	var previous_x: float = float(platforms[-1].x)
 	var lane: float = clampf(desired_lane, previous_x - 145.0, previous_x + 145.0)
-	var width: float = maxf(94.0, [190.0, 160.0, 142.0, 168.0][absolute_index % 4] - tier * 44.0)
+	var width: float = maxf(88.0, [178.0, 150.0, 132.0, 158.0][absolute_index % 4] - tier * 39.0)
 	var plat: Dictionary = {"x": lane, "y": previous_y - gap, "w": width, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	if absolute_index > 8 and absolute_index % 11 == 6:
 		plat.durability = 1
 		plat.drop_on_contact = true
 		plat.branch_x = clampf(lane + (110.0 if lane < 280.0 else -110.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
 		plat.branch_y = plat.y
-		plat.branch_w = 104.0 - tier * 16.0
+		plat.branch_w = 98.0 - tier * 14.0
 		plat.branch_durability = 0
 		plat.branch_safe = true
 	elif absolute_index > 12 and absolute_index % 17 == 9:
 		plat.mud = true
-		plat.mud_half_width = width * 0.24
+		plat.mud_half_width = width * 0.16
+		plat.branch_x = clampf(lane + (100.0 if lane < 280.0 else -100.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
+		plat.branch_y = plat.y - minf(18.0, maxf(0.0, 135.0 - gap))
+		plat.branch_w = 98.0 - tier * 14.0
+		plat.branch_durability = 0
+		plat.branch_safe = true
 	elif absolute_index > 18 and absolute_index % 13 == 4:
 		plat.moving = true
 	return plat
@@ -223,11 +252,11 @@ func _configure_first_stage() -> void:
 			# The original opening-stage forks were level with the main route.
 			platforms[i].branch_y = height
 		if i < STEPS:
-			var base_width: float = [180.0, 162.0, 148.0][difficulty]
+			var base_width: float = [172.0, 154.0, 140.0][difficulty]
 			var width_scale: float = [1.0, 0.82, 0.70, 0.88, 0.76][i % 5]
 			platforms[i].w = base_width * width_scale
 			if platforms[i].checkpoint:
-				platforms[i].w = [198.0, 180.0, 164.0][difficulty]
+				platforms[i].w = [188.0, 170.0, 154.0][difficulty]
 	# Keep the mandatory steering pairs compact and clearly separated.
 	for gate in STEERING_GATES:
 		for offset in range(2):
@@ -245,7 +274,7 @@ func _configure_first_stage() -> void:
 		var plat: Dictionary = platforms[i]
 		_clear_platform_hazards(plat)
 		plat.mud = true
-		plat.mud_half_width = plat.w * 0.23
+		plat.mud_half_width = plat.w * 0.16
 		_add_first_stage_branch(i, true, 22.0)
 	# Extra small one-use leaves add more visible platforms and risky shortcuts.
 	for i in FIRST_STAGE_EXTRA_ROUTES:
@@ -264,7 +293,7 @@ func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
 	var reachable_max: float = minf(460.0, minf(previous_x + 145.0, next_x + 145.0))
 	plat.branch_x = clampf(desired_x, reachable_min, reachable_max)
 	plat.branch_y = float(plat.y) - reachable_lift
-	plat.branch_w = [122.0, 106.0, 92.0][difficulty]
+	plat.branch_w = [116.0, 102.0, 90.0][difficulty]
 	plat.branch_durability = 0 if permanent else 1
 	plat.branch_safe = permanent
 	plat.branch_fragile = not permanent

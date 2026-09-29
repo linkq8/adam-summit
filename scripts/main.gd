@@ -2,6 +2,7 @@ extends Node2D
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const Model = preload("res://scripts/race_model.gd")
 const Stage = preload("res://scripts/stage.gd")
+const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
 const ITEM_ART = preload("res://assets/ui/surprise-items-v2.png")
@@ -49,6 +50,10 @@ var sound_on := true
 var music_volume := 0.5
 var effects_volume := 0.7
 var haptics := true
+var tilt_enabled := false
+var tilt_neutral := 0.0
+var tilt_filtered := 0.0
+var tilt_needs_calibration := true
 var tutorial_seen := false
 var unlocked := 0
 var records: Dictionary = {}
@@ -403,7 +408,7 @@ func show_tutorial() -> void:
 	var tv_help := "القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة"
 	if surprise_mode:
 		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يظهر كلطخات عشوائية على شاشة المنافس"
-	label(modal, ("صعود لا نهائي للاعب واحد\nتحرّك لتختار الأرضية التالية\nكلما ارتفعت، صغرت الأرضيات\nسقوط واحد ينهي المحاولة" if endless_mode else (tv_help if tv else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان")), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
+	label(modal, ("صعود لا نهائي للاعب واحد\nتحرّك لتختار الأرضية التالية\nكلما ارتفعت، صغرت الأرضيات\nسقوط واحد ينهي المحاولة" if endless_mode else (tv_help if tv else ("القفز تلقائي\nأمِل الهاتف أو اسحب بإصبعك\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان" if tilt_enabled else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"))), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
 	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
 	help_time = 0
 	play_sound("help")
@@ -454,7 +459,7 @@ func build_hud() -> void:
 		var has_touch_action := mobile and surprise_mode and player_count > 1
 		var guide_width := canvas_size.x - (136 if has_touch_action else 40)
 		guide_panel = box(hud, Rect2(20, canvas_size.y - safe_bottom - 40, guide_width, 34), Color(1, 0.98, 0.92, 0.90), Color.TRANSPARENT, 14)
-		guide_label = label(hud, "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع", Rect2(25, canvas_size.y - safe_bottom - 40, guide_width - 10, 34), 15)
+		guide_label = label(hud, ("أمِل الهاتف أو اسحب • الأسهم الذهبية: طريق أسرع" if tilt_enabled and mobile else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع"), Rect2(25, canvas_size.y - safe_bottom - 40, guide_width - 10, 34), 15)
 		if has_touch_action:
 			touch_item_button = button(hud, "أداة", Rect2(canvas_size.x - 106, canvas_size.y - safe_bottom - 78, 86, 76), use_touch_item, true)
 			touch_item_button.add_theme_font_size_override("font_size", 17)
@@ -477,6 +482,8 @@ func start_race() -> void:
 	touch_directions = Vector2.ZERO
 	touch_ids.clear()
 	drag_id = -1
+	tilt_needs_calibration = true
+	tilt_filtered = 0.0
 	held_keys.clear()
 	for stage in stages: stage.sparkles.clear(); stage.debris.clear()
 	layout_ui()
@@ -577,6 +584,8 @@ func use_touch_item() -> void:
 
 func read_directions():
 	var result := [touch_directions.x, touch_directions.y, 0.0, 0.0]
+	if mobile and not tv and tilt_enabled and drag_id == -1 and not Input.get_connected_joypads().has(slots[0]):
+		result[0] = read_tilt()
 	if not tv and drag_id != -1: result[0] = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
 	result[0] += float(held_keys.get(KEY_D, false)) - float(held_keys.get(KEY_A, false))
 	var keyboard_player := remote_player if tv and remote_player >= 0 and remote_player < player_count else (1 if player_count > 1 else 0)
@@ -590,6 +599,26 @@ func read_directions():
 			result[i] += float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_RIGHT)) - float(Input.is_joy_button_pressed(slots[i], JOY_BUTTON_DPAD_LEFT))
 	for i in range(4): result[i] = clampf(result[i], -1, 1)
 	return Vector2(result[0], result[1]) if player_count <= 2 else result
+
+func read_tilt() -> float:
+	var sample: Vector3 = Tilt.sensor_vector(Input.get_gravity(), Input.get_accelerometer())
+	if not Tilt.has_sensor(sample):
+		tilt_filtered = 0.0
+		return 0.0
+	var lateral_angle: float = Tilt.lateral(sample)
+	if tilt_needs_calibration:
+		tilt_neutral = lateral_angle
+		tilt_filtered = 0.0
+		tilt_needs_calibration = false
+	var target: float = Tilt.steering(lateral_angle, tilt_neutral, Input.get_gyroscope().z)
+	tilt_filtered = lerpf(tilt_filtered, target, 0.35)
+	return 0.0 if absf(tilt_filtered) < 0.02 else tilt_filtered
+
+func recenter_tilt() -> void:
+	tilt_needs_calibration = true
+	tilt_filtered = 0.0
+	if mobile and not tv:
+		read_tilt()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadMotion and state not in ["racing", "countdown"]:
@@ -703,6 +732,7 @@ func resume_race() -> void:
 		if i != remote_player and slots[i] >= 0 and not slots[i] in Input.get_connected_joypads(): return
 	clear_modal()
 	state = resume_state
+	if tilt_enabled: recenter_tilt()
 	if state == "countdown": build_countdown()
 
 func show_settings() -> void:
@@ -736,7 +766,13 @@ func show_settings() -> void:
 			else: tv_balanced_resolution = true
 			apply_render_quality(); save_options(); layout_ui())
 	if not tv:
-		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, 438), Vector2(r.size.x - 40, 60)), func(): haptics = not haptics; save_options(); show_settings())
+		var control_y := minf(438.0, r.size.y - 260.0)
+		var control_w := (r.size.x - 50) * 0.5
+		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, control_y), Vector2(control_w, 54)), func(): haptics = not haptics; save_options(); show_settings())
+		if mobile:
+			button(modal, "الميلان: " + ("مفعّل" if tilt_enabled else "مغلق"), Rect2(r.position + Vector2(30 + control_w, control_y), Vector2(control_w, 54)), func(): tilt_enabled = not tilt_enabled; recenter_tilt(); save_options(); show_settings())
+			if tilt_enabled:
+				button(modal, "توسيط الميلان الآن", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 46)), func(): recenter_tilt(); show_settings())
 	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
@@ -840,6 +876,8 @@ func load_options() -> void:
 	music_volume = clampf(float(data.get("music", 0.5)), 0, 1)
 	effects_volume = clampf(float(data.get("effects", 0.7)), 0, 1)
 	haptics = bool(data.get("haptics", true))
+	tilt_enabled = bool(data.get("tilt_enabled", false))
+	tilt_needs_calibration = true
 	tutorial_seen = bool(data.get("tutorial", false)) and int(data.get("controls_version", 0)) == 1
 	if data.get("saved") is Dictionary: saved_game = data.saved
 	if data.get("records") is Dictionary: records = data.records
@@ -847,7 +885,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))

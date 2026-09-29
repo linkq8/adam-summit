@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.9 tilt steering and mud escapes
+
+Phone players may enable tilt steering in Settings. Gravity supplies a stable lateral angle, a small gyroscope lead reduces lag during a roll, and accelerometer data is a fallback. Enabling tilt, starting or resuming a run recenters the current grip; Settings also offers manual recentering. A dead zone and short smoothing reject hand tremor. Finger dragging temporarily takes control whenever it is used, and connected gamepads take priority. Android sensor inputs are enabled explicitly; TV controls remain unchanged.
+
+Stage 1-1 and Endless Climb landings contract again. The other fourteen adventure stages shrink ordinary and side landings by about 6–8%, keeping mandatory steering gates, start and summit wide enough to remain reachable. Every mud trap in adventure now has clear stable edges and a permanent raised side bypass. Endless mud similarly leaves clear edges and has a permanent side landing. Simulations cover all fifteen stages at three difficulties, the post-collapse fallback route, and endless generation beyond 160 platforms; direct landing tests confirm each adventure mud edge and bypass avoids the delay.
+
 ## v0.8.8 tighter landings and wider camera
 
 Stage 1-1 reduces ordinary, checkpoint, steering-gate and alternate landing widths by about 9–11%, and increases the variation between its short and tall rises. All immediate-collapse surfaces keep their permanent bypasses. Endless Climb starts with narrower landings and slightly taller rises, then continues shrinking toward a 94-unit floor while height still grows gradually. Reachability simulations cover the first stage at all three difficulty settings, including a route where every crumble landing has already disappeared, and the endless route past 160 generated platforms.
