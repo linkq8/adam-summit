@@ -1,5 +1,13 @@
 # Adam’s Summit design and implementation
 
+## v0.8.15 shared gameplay pace
+
+Speed is a separate preference from difficulty and steering sensitivity: Calm 80%, Normal 100% (default), Fast 120%. A dedicated choice screen is reachable from settings and the session's Play Mode screen; setup summarizes the selected pace. Existing parchment/sign artwork and centered lettering layout are retained. The choice applies to the next stage/run and is captured once for the complete shared race, including all TV racers. Countdown, menu input, save intervals and audio remain on their original clocks.
+
+GamePace schedules unchanged 1/60-second model steps using a scaled accumulator, avoiding larger collision steps or altered jump trajectories. Slow/fast player positions and camera samples interpolate for presentation; rescue teleports and endless rebases reset interpolation history. Frame cap remains 60 FPS; this is not a physical TV performance claim. HUD/finish clocks divide simulation time by the captured rate and remaining shield/magnet seconds use the same conversion. Saved journeys retain their own active pace; previous saves fall back to Normal. Preferences made during a pause affect the next stage rather than changing the running race.
+
+Tests compare equal simulation ticks at every pace for four racers, jump/steering/effect/platform-state equivalence, real-time conversion, countdown/pause behavior, selection focus/return routes, preference persistence and saved/legacy journey restoration. Slow/fast route checks cover one stage in each world at all three difficulties; endless loss still ends immediately without rescue. Existing UI, flow, controller, lettering, camera, world progression and endless checks pass. Batched local renders cover speed/settings/mode choices on phone, small phone, tablet and TV. No stage geometry or race-model physics constants change.
+
 ## v0.8.14 lettering alignment inside illustrated signs
 
 Menu titles and their descriptions now form a centered stack on the pale writing surface, with equal reserved space on both sides and a separate icon lane on the right. Shared normalized content bounds distinguish wide wooden signs from compact selector tokens, keeping the lettering away from leaves and borders. Buttons with descriptions have more vertical space; setup spacing and reserved content height adapt accordingly on phone/tablet and TV. Dynamic descriptions shrink within a bounded range and retain their accessible descriptions.

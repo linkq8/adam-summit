@@ -74,7 +74,7 @@ func _process(dt: float) -> void:
 		return
 	var p: Dictionary = game.model.players[index]
 	if configured_model != game.model or configured_base != game.model.endless_base: configure_terrain()
-	var camera := camera_for(p)
+	var camera := camera_for(p, game.visual_position(index), game.visual_camera(index))
 	for i in range(terrain.size()):
 		var plat: Dictionary = game.model.platforms[i]
 		var y: float = plat.y - camera
@@ -94,7 +94,8 @@ func _process(dt: float) -> void:
 		old_pack = pack
 	if frame != old_frame or row != old_row: Wardrobe.pose(hero, frame)
 	old_frame = frame; old_row = row
-	hero.position = Vector2(p.p.x, p.p.y - camera)
+	var shown: Vector2 = game.visual_position(index)
+	hero.position = Vector2(shown.x, shown.y - camera)
 	hero.visible = p.invisible <= 0 or p.landing_flash > 0
 	Wardrobe.face(hero, p.face)
 	var squash: float = 0 if game.low_detail else p.squash
@@ -201,7 +202,7 @@ func _draw() -> void:
 		return
 	var model = game.model
 	var player: Dictionary = model.players[index]
-	var camera: float = camera_for(player)
+	var camera: float = camera_for(player, game.visual_position(index), game.visual_camera(index))
 	var time: float = model.elapsed
 	# The main scene already paints a full-screen background. Repainting it inside
 	# the phone's clipped playfield created a visible inner rectangle. Split-screen
@@ -361,7 +362,7 @@ func crumble(at: Vector2, width: float) -> void:
 func draw_platform_marks() -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size(): return
 	var model = game.model
-	var camera: float = camera_for(model.players[index])
+	var camera: float = camera_for(model.players[index], game.visual_position(index), game.visual_camera(index))
 	for i in range(model.platforms.size()):
 		var plat: Dictionary = model.platforms[i]
 		var remaining: int = model.remaining_jumps(index, i)
@@ -411,7 +412,7 @@ func draw_screen_effects() -> void:
 				screen_fx.draw_line(shape.drip_from, shape.drip_to, Color(0.018, 0.035, 0.052, alpha), shape.drip_width, true)
 				screen_fx.draw_circle(shape.drip_to, shape.drip_width * 0.7, Color(0.018, 0.035, 0.052, alpha))
 	if effect_time > 0 and effect_kind >= 0:
-		var camera := camera_for(player)
+		var camera := camera_for(player, game.visual_position(index), game.visual_camera(index))
 		var at: Vector2 = player.p - Vector2(0, camera + 45)
 		var phase := 1.0 - effect_time / (0.26 if game.low_detail else 0.48)
 		var size := lerpf(62, 102, phase)
@@ -511,14 +512,15 @@ func draw_finish(at: Vector2) -> void:
 			var phase: float = fposmod(game.total_time * 0.4 + i / 12.0, 1)
 			star(at + Vector2((i - 5.5) * 25, -200 + phase * 160), 5, Color("ffda86"))
 
-func camera_for(p: Dictionary) -> float:
+func camera_for(p: Dictionary, shown_position: Vector2 = Vector2.INF, shown_camera: float = INF) -> float:
 	# The simulation camera only moves upward. Following it directly can clip
 	# a still-reachable landing during descent, before the rescue threshold.
 	# Reserve 280 world units below the feet: a full jump (~168 with a
 	# spring), platform artwork, and breathing room. This presentation-only
 	# lower bound follows descent continuously without changing fall rules.
-	var climb_camera: float = p.camera - maxf(0, view_height - 600) * 0.65
-	return maxf(climb_camera, p.p.y + 280.0 - view_height)
+	var position: Vector2 = p.p if shown_position == Vector2.INF else shown_position
+	var climb_camera: float = (p.camera if shown_camera == INF else shown_camera) - maxf(0, view_height - 600) * 0.65
+	return maxf(climb_camera, position.y + 280.0 - view_height)
 
 func configure_terrain() -> void:
 	configured_model = game.model

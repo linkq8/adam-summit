@@ -6,6 +6,7 @@ const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
 const Lettering = preload("res://scripts/lettering.gd")
+const GamePace = preload("res://scripts/game_pace.gd")
 const AdventureButton = preload("res://scripts/menu_button.gd")
 const SIGN_IVORY = preload("res://assets/ui/menu-sign-ivory-v1.png")
 const SIGN_GOLD = preload("res://assets/ui/menu-sign-gold-v1.png")
@@ -34,6 +35,9 @@ var mobile := false
 var player_count := 1
 var level := 0
 var difficulty := 0
+var game_speed := 1
+var pace := GamePace.new()
+var speed_return := "settings"
 var costume := 0
 var backpack := 0
 var cooperative := false
@@ -268,6 +272,7 @@ func layout_ui() -> void:
 	if state == "lobby": show_lobby()
 	elif state == "setup": show_play_setup()
 	elif state == "mode_select": show_play_modes()
+	elif state == "speed_select": show_speed_options()
 	elif state == "paused": show_pause()
 	elif state == "settings": show_settings()
 	elif state == "controls": show_control_settings()
@@ -522,7 +527,7 @@ func show_play_setup() -> void:
 	var heading := "مغامرة لاعب واحد" if player_count == 1 else "مغامرة لاعبين" if player_count == 2 else "مغامرة %d لاعبين" % player_count
 	var outfit_detail: String = Wardrobe.OUTFITS[costume] if player_count == 1 else "لبس وأداة تحكم لكل لاعب"
 	var stage_detail: String = "مسار متجدد تلقائيًا" if player_count == 1 and solo_endless_selected else Worlds.WORLDS[level / 3] + " • المرحلة %d–%d" % [level / 3 + 1, level % 3 + 1]
-	var mode_detail: String = play_mode_name() + " • " + DIFFICULTIES[difficulty]
+	var mode_detail: String = play_mode_name() + " • " + DIFFICULTIES[difficulty] + " • سرعة " + GamePace.NAMES[game_speed]
 	if tv:
 		menu_title(heading, Rect2(65, 36, 640, 104), 65)
 		var subtitle := label(modal, "جهّز اللبس والمرحلة وطريقة اللعب", Rect2(68, 140, 630, 42), 24, MENU_CREAM)
@@ -588,14 +593,15 @@ func show_play_modes() -> void:
 	var descriptions := ["اصعد إلى نهاية المرحلة", "سقوط واحد ينهي المحاولة"] if player_count == 1 else ["الفائز أول من يصل إلى القمة", "تصلون إلى القمة معًا", "صناديق وأدوات بين المتسابقين"]
 	var selected := (1 if solo_endless_selected else 0) if player_count == 1 else (2 if surprise_mode else 1 if cooperative else 0)
 	for id in range(names.size()):
-		button(modal, names[id] + (" ✓" if selected == id else ""), Rect2(r.position + Vector2(24, 115 + id * 102), Vector2(r.size.x - 48, 62)), func(): choose_play_mode(id), selected == id)
-		label(modal, descriptions[id], Rect2(r.position + Vector2(24, 178 + id * 102), Vector2(r.size.x - 48, 30)), 17)
-	var y := 455.0
+		button(modal, names[id] + (" ✓" if selected == id else ""), Rect2(r.position + Vector2(24, 115 + id * 88), Vector2(r.size.x - 48, 56)), func(): choose_play_mode(id), selected == id)
+		label(modal, descriptions[id], Rect2(r.position + Vector2(24, 171 + id * 88), Vector2(r.size.x - 48, 30)), 17)
+	var y := 115.0 + names.size() * 88.0 + 12.0
 	label(modal, "الصعوبة", Rect2(r.position + Vector2(24, y), Vector2(r.size.x - 48, 38)), 23)
 	var width := (r.size.x - 64) / 3
 	for id in range(3):
-		var choice := button(modal, DIFFICULTIES[id], Rect2(r.position + Vector2(24 + id * (width + 8), y + 52), Vector2(width, 64)), func(): difficulty = id; easy = id == 0; save_options(); show_play_modes(), difficulty == id)
+		var choice := button(modal, DIFFICULTIES[id], Rect2(r.position + Vector2(24 + id * (width + 8), y + 42), Vector2(width, 54)), func(): difficulty = id; easy = id == 0; save_options(); show_play_modes(), difficulty == id)
 		choice.add_theme_font_size_override("font_size", 17)
+	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position + Vector2(24, y + 108), Vector2(r.size.x - 48, 54)), func(): speed_return = "mode_select"; show_speed_options())
 	button(modal, "رجوع إلى تجهيز اللعب", Rect2(r.position + Vector2(24, r.size.y - 88), Vector2(r.size.x - 48, 64)), show_play_setup).grab_focus()
 
 func controller_text(i: int) -> String:
@@ -663,7 +669,8 @@ func finish_tutorial() -> void:
 	else: return_to_play_menu()
 
 func menu_back() -> void:
-	if state in ["updates", "controls"]: show_settings()
+	if state == "speed_select": return_from_speed_options()
+	elif state in ["updates", "controls"]: show_settings()
 	elif state in ["worlds", "wardrobe", "players", "mode_select", "tutorial"]: return_to_play_menu()
 	elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
 	else: show_lobby()
@@ -730,6 +737,7 @@ func start_race() -> void:
 	model = Model.new(easy, player_count, level, difficulty, endless_mode)
 	model.cooperative = tv and player_count > 1 and cooperative
 	model.surprise_mode = tv and player_count > 1 and surprise_mode
+	pace.reset(model, game_speed)
 	select_music()
 	state = "countdown"
 	countdown = 3
@@ -756,11 +764,12 @@ func _physics_process(dt: float) -> void:
 		count_label.text = str(maxi(n, 1))
 		if countdown <= 0: clear_modal(); state = "racing"; play_sound("go")
 	elif state == "racing":
+		if pace.course != model: pace.reset(model, game_speed)
 		var directions = read_directions()
 		if demo:
 			directions = []
 			for i in range(player_count): directions.append(model.autopilot(i))
-		handle_game_events(model.step(dt, directions))
+		handle_game_events(pace.advance(dt, directions))
 		if model.endless and model.ended: show_endless_finish()
 		elif model.complete(): show_finish()
 		save_timer += dt
@@ -788,14 +797,21 @@ func _physics_process(dt: float) -> void:
 		if not tv and is_instance_valid(guide_label):
 			var p: Dictionary = model.players[0]
 			var abilities := ""
-			if p.shield > 0: abilities += "درع %dث  " % ceili(p.shield)
-			if p.magnet > 0: abilities += "مغناطيس %dث  " % ceili(p.magnet)
+			if p.shield > 0: abilities += "درع %dث  " % ceili(p.shield / pace.rate())
+			if p.magnet > 0: abilities += "مغناطيس %dث  " % ceili(p.magnet / pace.rate())
 			if p.bubble: abilities += "فقاعة إنقاذ ✓"
 			var hint_window: bool = model.elapsed < 8.0 or fmod(model.elapsed, 18.0) < 4.0
 			guide_label.visible = abilities != "" or hint_window
 			if is_instance_valid(guide_panel): guide_panel.visible = guide_label.visible
 			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if level == 0 and int(model.elapsed / 18.0) % 2 == 1 else ("أمِل الهاتف أو اسحب • الأسهم الذهبية: طريق أسرع" if tilt_enabled and mobile else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")))
-		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
+		var seconds := int(model.elapsed / pace.rate())
+		clock_label.text = "%02d:%02d" % [seconds / 60, seconds % 60]
+
+func visual_position(index: int) -> Vector2:
+	return pace.position(index) if state == "racing" and pace.course == model and pace.selection != 1 else model.players[index].p
+
+func visual_camera(index: int) -> float:
+	return pace.camera(index) if state == "racing" and pace.course == model and pace.selection != 1 else model.players[index].camera
 
 func handle_game_events(events: Array[Dictionary]) -> void:
 	for event in events:
@@ -999,11 +1015,11 @@ func show_settings() -> void:
 	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
 	label(modal, "على راحتك", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
 	for i in range(2):
-		var y := r.position.y + 120 + i * 105
+		var y := r.position.y + 100 + i * 90
 		label(modal, "الموسيقى" if i == 0 else "المؤثرات والإرشاد الصوتي", Rect2(r.position.x + 25, y, r.size.x - 50, 35), 22)
 		var slider := HSlider.new()
-		slider.position = Vector2(r.position.x + 40, y + 44)
-		slider.size = Vector2(r.size.x - 80, 38)
+		slider.position = Vector2(r.position.x + 40, y + 40)
+		slider.size = Vector2(r.size.x - 80, 32)
 		slider.min_value = 0
 		slider.max_value = 1
 		slider.step = 0.1
@@ -1013,25 +1029,51 @@ func show_settings() -> void:
 			if i == 0: music_volume = value
 			else: effects_volume = value
 			apply_audio(); save_options())
-	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 356), Vector2(r.size.x - 40, 60)), func(): low_detail = not low_detail; save_options(); show_settings())
+	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 286), Vector2(r.size.x - 40, 54)), func(): low_detail = not low_detail; save_options(); show_settings())
 	if tv:
-		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p")), Rect2(r.position + Vector2(20, 425), Vector2(r.size.x - 40, 48)), func():
+		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p")), Rect2(r.position + Vector2(20, 350), Vector2(r.size.x - 40, 48)), func():
 			if tv_native_resolution: tv_native_resolution = false; tv_balanced_resolution = false
 			elif tv_balanced_resolution: tv_native_resolution = true
 			else: tv_balanced_resolution = true
 			apply_render_quality(); save_options(); layout_ui())
 	if not tv:
-		var control_y := minf(438.0, r.size.y - 260.0)
+		var control_y := 350.0
 		var control_w := (r.size.x - 50) * 0.5
 		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, control_y), Vector2(control_w, 54)), func(): haptics = not haptics; save_options(); show_settings())
 		if mobile:
 			button(modal, "التحكم: " + ("ميلان وسحب" if tilt_enabled else "سحب فقط"), Rect2(r.position + Vector2(30 + control_w, control_y), Vector2(control_w, 54)), show_control_settings)
 			label(modal, "جاهز تلقائيًا • خيارات إضافية بالداخل", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 32)), 17)
 
+	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position + Vector2(20, 408 if tv else 452), Vector2(r.size.x - 40, 54)), func(): speed_return = "settings"; show_speed_options())
 	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
 		else: show_lobby(), true).grab_focus()
+
+func show_speed_options() -> void:
+	state = "speed_select"
+	clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var r := menu_rect
+	box(modal, r, MENU_CREAM)
+	label(modal, "سرعة اللعب", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
+	label(modal, "اختر إيقاع الحركة والقفز والعقبات", Rect2(r.position + Vector2(24, 94), Vector2(r.size.x - 48, 36)), 18)
+	var descriptions := ["وقت أكبر لاختيار الأرضية التالية", "الإيقاع المعتاد للمغامرة", "قفز وتنقّل أسرع لتحدٍّ أكبر"]
+	for chosen in range(GamePace.RATES.size()):
+		var text: String = GamePace.NAMES[chosen] + " • %d٪" % roundi(GamePace.RATES[chosen] * 100) + (" ✓" if game_speed == chosen else "")
+		var choice := button(modal, text, Rect2(r.position + Vector2(24, 152 + chosen * 114), Vector2(r.size.x - 48, 66)), func():
+			game_speed = chosen; save_options(); show_speed_options(), game_speed == chosen)
+		choice.name = "GameSpeed%d" % chosen
+		choice.accessibility_name = text
+		choice.accessibility_description = descriptions[chosen]
+		label(modal, descriptions[chosen], Rect2(r.position + Vector2(24, 218 + chosen * 114), Vector2(r.size.x - 48, 32)), 17)
+		if game_speed == chosen: choice.grab_focus()
+	label(modal, "تُطبّق عند بدء المرحلة • نفس السرعة للجميع\nارتفاع القفزة ثابت، والعدّ التنازلي لا يتغيّر", Rect2(r.position + Vector2(24, 514), Vector2(r.size.x - 48, 64)), 17)
+	button(modal, "رجوع", Rect2(r.position + Vector2(24, r.size.y - 84), Vector2(r.size.x - 48, 56)), return_from_speed_options)
+
+func return_from_speed_options() -> void:
+	if speed_return == "mode_select": show_play_modes()
+	else: show_settings()
 
 func reset_control_defaults() -> void:
 	tilt_enabled = true
@@ -1109,7 +1151,7 @@ func build_finish() -> void:
 	label(modal, "نجحنا معًا!" if model.cooperative else ("عالم مكتمل!" if level % 3 == 2 else ("وصلتما معًا!" if tie else "وصلنا إلى القمّة!")), Rect2(r.position + Vector2(10, 30), Vector2(r.size.x - 20, 65)), 34)
 	illustration = portrait(modal, player_outfits[winner] if player_count > 1 else costume, r.position + Vector2(r.size.x / 2, 233), 235, Wardrobe.VICTORY_FRAME, player_packs[winner] if player_count > 1 else backpack)
 	var detail := "★ %d    ❀ %d / 3" % [model.players[winner].stars, model.players[winner].secrets.size()]
-	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % model.elapsed
+	if player_count > 1: detail = ("تعاون رائع!" if model.cooperative else ("تعادل جميل" if tie else "فاز اللاعب %d" % (winner + 1))) + "\n%.2f ثانية" % (model.elapsed / pace.rate())
 	label(modal, detail, Rect2(r.position + Vector2(10, 365), Vector2(r.size.x - 20, 90)), 28)
 	var title := "المرحلة التالية  ▶"
 	if level % 3 == 2: title = "العالم التالي  ▶"
@@ -1120,6 +1162,7 @@ func build_finish() -> void:
 func save_journey() -> void:
 	if player_count == 1 and not endless_mode and state in ["racing", "paused", "countdown"] and not demo:
 		saved_game = model.snapshot()
+		saved_game["game_speed"] = pace.selection
 		save_options()
 
 func restore_journey() -> void:
@@ -1128,6 +1171,7 @@ func restore_journey() -> void:
 	if restored == null: saved_game.clear(); show_lobby(); return
 	player_count = 1
 	model = restored
+	pace.reset(model, GamePace.valid_selection(int(saved_game.get("game_speed", 1))))
 	level = model.level
 	difficulty = model.difficulty
 	select_music()
@@ -1141,6 +1185,7 @@ func load_options() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string(storage_path))
 	if not data is Dictionary: return
 	difficulty = clampi(int(data.get("difficulty", 0)), 0, 2)
+	game_speed = GamePace.valid_selection(int(data.get("game_speed", 1)))
 	costume = clampi(int(data.get("costume", 0)), 0, 3)
 	backpack = clampi(int(data.get("backpack", 0)), 0, 2)
 	cooperative = bool(data.get("cooperative", false))
@@ -1170,7 +1215,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tilt_sensitivity": tilt_sensitivity, "drag_sensitivity": drag_sensitivity, "tilt_inverted": tilt_inverted, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "game_speed": game_speed, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tilt_sensitivity": tilt_sensitivity, "drag_sensitivity": drag_sensitivity, "tilt_inverted": tilt_inverted, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -1281,7 +1326,7 @@ func _draw() -> void:
 		var size := art.get_size() * ratio
 		draw_texture_rect(art, Rect2(Vector2(-(size.x - canvas_size.x) * (0.3 if not tv else 0.5), (canvas_size.y - size.y) / 2), size), false)
 		return
-	if state in ["players", "worlds", "wardrobe", "mode_select", "settings", "controls", "updates", "tutorial"]:
+	if state in ["players", "worlds", "wardrobe", "mode_select", "speed_select", "settings", "controls", "updates", "tutorial"]:
 		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("f5edda"))
 		draw_rect(Rect2(0, 0, canvas_size.x, 12), Color("cf7652"))
 		return

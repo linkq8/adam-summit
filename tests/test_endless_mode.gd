@@ -66,7 +66,10 @@ func run() -> void:
 	game.show_lobby()
 	check(not game.endless_mode, "Returning to lobby restores normal adventure selection")
 	game.stop_audio()
+	# Let queued audio playback releases complete before shutting down the test.
+	await create_timer(0.2).timeout
 	game.queue_free()
+	await process_frame
 	await process_frame
 	print("ENDLESS_MODE_TESTS: " + ("PASS" if failures == 0 else str(failures) + " FAILED"))
 	quit(0 if failures == 0 else 1)
