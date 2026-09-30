@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.12 generated adventure menu skin
+
+Four transparent generated assets replace plain menu cards: organic ivory and gold wooden parchment signs, a scroll for large menu sheets, and a compact carved selector token. Gold identifies the primary action and focused wide choice; a crisp drawn pointer additionally marks gamepad focus. Disabled choices keep readable ink on a muted surface. Arabic labels remain live text, inset away from the illustrated wood, and long button labels shrink within a bounded font range. The original PNG alpha is preserved; texture regions only trim unused transparent space at render time. Smooth mipmapped rendering keeps these static shared textures usable across phone, tablet and TV without per-frame image processing or blur effects. Gameplay HUD surfaces, menu hierarchy, physics and routes remain unchanged.
+
+The asset prompts and built-in generator provenance are in design/MENU-SKIN-0812.json. UI, controller and session-flow regression tests plus batched local renders cover the integrated skin; no physical TV performance measurement is claimed.
+
 ## v0.8.11 player selection before session setup
 
 The TV home has four entry choices: Single Player, Two Players, Settings and How to Play. Phone/tablet home has the same single-player, settings and help entries, preserving phone-only solo play. Selecting players opens a separate setup screen with Outfit, Stage and Play Mode, followed by Start and Back. TV multiplayer setup includes two/three/four-player selection without adding home entries. All selectors return to setup with their current choices intact; gamepad B, Escape and Android Back follow this hierarchy.

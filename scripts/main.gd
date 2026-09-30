@@ -5,6 +5,11 @@ const Stage = preload("res://scripts/stage.gd")
 const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
+const AdventureButton = preload("res://scripts/menu_button.gd")
+const SIGN_IVORY = preload("res://assets/ui/menu-sign-ivory-v1.png")
+const SIGN_GOLD = preload("res://assets/ui/menu-sign-gold-v1.png")
+const MENU_SCROLL = preload("res://assets/ui/menu-scroll-v1.png")
+const MENU_TOKEN = preload("res://assets/ui/menu-token-v1.png")
 const MENU_ICONS = preload("res://assets/ui/menu-actions.svg")
 const MENU_GOLD := Color("f3c45e")
 const MENU_CREAM := Color("fff5dc")
@@ -278,12 +283,18 @@ func box(parent: Node, rect: Rect2, fill: Color, border: Color = Color.TRANSPARE
 	panel.position = rect.position
 	panel.size = rect.size
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.set_corner_radius_all(radius)
-	if border.a > 0:
-		style.set_border_width_all(2)
-		style.border_color = border
+	var style: StyleBox
+	# Large menu sheets use the generated scroll; gameplay HUD and tiny separators retain their lightweight surfaces.
+	if parent == modal and rect.size.x >= 260 and rect.size.y >= 240:
+		style = illustrated_style(MENU_SCROLL, Rect2(33, 0, 1013, 1448))
+	else:
+		var flat := StyleBoxFlat.new()
+		flat.bg_color = fill
+		flat.set_corner_radius_all(radius)
+		if border.a > 0:
+			flat.set_border_width_all(2)
+			flat.border_color = border
+		style = flat
 	panel.add_theme_stylebox_override("panel", style)
 	parent.add_child(panel)
 	return panel
@@ -302,31 +313,50 @@ func label(parent: Node, text: String, rect: Rect2, font_size: int = 22, color: 
 	parent.add_child(item)
 	return item
 
+func illustrated_style(texture: Texture2D, region: Rect2, tint: Color = Color.WHITE) -> StyleBoxTexture:
+	var style := StyleBoxTexture.new()
+	style.texture = texture
+	style.region_rect = region
+	style.modulate_color = tint
+	style.set_content_margin_all(5)
+	return style
+
 func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary: bool = false) -> Button:
-	var b := Button.new()
+	var b := AdventureButton.new()
 	b.text = text
 	b.position = rect.position
 	b.size = rect.size
-	b.add_theme_font_size_override("font_size", 21 if tv else 22)
-	b.add_theme_color_override("font_color", INK)
-	b.add_theme_color_override("font_hover_color", INK)
-	b.add_theme_color_override("font_focus_color", INK)
-	for kind in ["normal", "hover", "pressed", "focus"]:
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color("f3c45e") if primary else Color("fff5dc")
-		s.border_color = Color("b8863e") if primary else Color("c8b994")
-		s.set_border_width_all(1)
-		if kind == "hover" or kind == "pressed":
-			s.bg_color = s.bg_color.lightened(0.10)
-		s.set_corner_radius_all(12)
-		s.set_content_margin_all(5)
+	b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var font_size := 21 if tv else 22
+	var text_width := rect.size.x - (56 if rect.size.x >= 180 else 22)
+	var face := FONT
+	while font_size > 14 and face.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > text_width:
+		font_size -= 1
+	b.add_theme_font_size_override("font_size", font_size)
+	for key in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
+		b.add_theme_color_override(key, INK)
+	b.add_theme_color_override("font_disabled_color", Color("526f68"))
+	var compact := rect.size.x / rect.size.y < 2.6
+	var region := Rect2(20, 105, 2130, 475)
+	for kind in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var texture: Texture2D = MENU_TOKEN if compact else SIGN_GOLD if primary or kind == "focus" else SIGN_IVORY
+		var area := Rect2(0, 15, 1275, 1205) if compact else region
+		var tint := Color.WHITE
+		if kind == "pressed": tint = Color(0.85, 0.89, 0.84)
+		elif kind == "hover": tint = Color(1.04, 1.03, 1.0)
+		elif kind == "disabled": tint = Color(0.80, 0.83, 0.79, 0.9)
+		elif compact and (primary or kind == "focus"): tint = Color(1.0, 0.85, 0.55)
+		var skin := illustrated_style(texture, area, tint)
+		skin.content_margin_left = 28 if not compact else 11
+		skin.content_margin_right = 28 if not compact else 11
 		if kind == "focus":
-			s.bg_color = Color.TRANSPARENT
-			s.border_color = Color("dd7546")
-			s.set_border_width_all(4)
-		b.add_theme_stylebox_override(kind, s)
+			skin.expand_margin_left = 3; skin.expand_margin_right = 3
+			skin.expand_margin_top = 3; skin.expand_margin_bottom = 3
+		b.add_theme_stylebox_override(kind, skin)
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.pressed.connect(callback)
+	b.focus_entered.connect(b.queue_redraw)
+	b.focus_exited.connect(b.queue_redraw)
 	parent.add_child(b)
 	return b
 
@@ -365,28 +395,19 @@ func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, 
 	b.tooltip_text = text
 	b.accessibility_name = text
 	b.accessibility_description = detail
-	for kind in ["normal", "hover", "pressed", "disabled"]:
-		var style: StyleBoxFlat = b.get_theme_stylebox("normal" if kind == "disabled" else kind).duplicate()
-		style.set_border_width_all(0)
-		style.set_corner_radius_all(18)
-		style.shadow_color = Color(0.02, 0.12, 0.12, 0.20)
-		style.shadow_size = 9
-		style.shadow_offset = Vector2(0, 5)
-		if kind == "pressed": style.bg_color = style.bg_color.darkened(0.10)
-		b.add_theme_stylebox_override(kind, style)
 	var has_detail := not detail.is_empty()
-	var icon_size := 38.0 if rect.size.y >= 70 else 28.0
-	menu_icon(b, icon, Rect2(rect.size.x - icon_size - 18, (rect.size.y - icon_size) / 2, icon_size, icon_size))
-	var title_size := (32 if primary else 27) if rect.size.x > 260 else 21
-	label(b, text, Rect2(16, 7 if has_detail else 0, rect.size.x - icon_size - 44, 40 if has_detail else rect.size.y), title_size, INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	var icon_size := 32.0 if rect.size.y >= 70 else 24.0
+	menu_icon(b, icon, Rect2(rect.size.x - icon_size - 50, (rect.size.y - icon_size) / 2, icon_size, icon_size))
+	var title_size := (28 if primary else 24) if rect.size.x > 260 else 20
+	label(b, text, Rect2(36, 17 if has_detail else 2, rect.size.x - icon_size - 94, 32 if has_detail else rect.size.y - 4), title_size, INK, HORIZONTAL_ALIGNMENT_RIGHT)
 	if has_detail:
-		label(b, detail, Rect2(16, 52 if primary else 47, rect.size.x - icon_size - 44, 26), 16, Color("365954"), HORIZONTAL_ALIGNMENT_RIGHT)
+		label(b, detail, Rect2(36, 50 if primary else 46, rect.size.x - icon_size - 94, 22), 14, Color("365954"), HORIZONTAL_ALIGNMENT_RIGHT)
 	return b
 
 func disable_stage_choice(choice: Button, disabled: bool) -> void:
 	choice.disabled = disabled
 	if disabled:
-		choice.modulate = Color(0.78, 0.82, 0.81, 0.85)
+		choice.modulate = Color(0.9, 0.94, 0.9)
 		choice.tooltip_text = "الصعود اللا نهائي يستخدم مسارًا متجددًا بدل المراحل"
 
 func menu_world(rect: Rect2) -> void:

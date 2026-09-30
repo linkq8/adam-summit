@@ -1,0 +1,25 @@
+{
+  "generator": "built-in image_gen",
+  "assets": [
+    {
+      "id": "secondary",
+      "prompt": "Use case: stylized-concept. Asset type: production game UI button, single isolated horizontal adventure sign on TRUE transparent alpha background. A bespoke hand-painted ivory parchment inset into a slim honey wooden branch frame, for Adam's Summit, a lush storybook floating-island adventure. NOT a rounded rectangle: organically carved tapered ends, gently uneven flowing upper/lower outline, small folded parchment corners, two discreet emerald leaves only at the outermost ends. Straight-on flat front view, no perspective or tilt. Very wide approximately 5:1 silhouette, centered with tight transparent padding. Quiet flat light-cream central writing area occupying 80% width and 65% height, entirely blank for live Arabic text and icons. Fine painterly material at perimeter only, no grain/no dark marks across text area. Confident high-resolution art, warm sunlight, restrained soft shadow. No text, letters, symbols, numbers, watermark, characters, scenery, extra items or multiple variants. Built to be sliced into elastic left/center/right UI regions without stretching end details.",
+      "path": "assets/ui/menu-sign-ivory-v1.png"
+    },
+    {
+      "id": "primary",
+      "prompt": "Use case: stylized-concept. Asset type: primary/selected button for Adam's Summit game UI. Input image is STYLE AND SHAPE REFERENCE: preserve its exact wide horizontal silhouette, view angle, wood rim, tiny green leaves at ends and blank writing area. Generate a matching hero button with a warm luminous honey-gold parchment central surface instead of ivory, slightly richer amber wood and delicate polished golden edging. Central area remains even, light honey (#f4c769) for dark teal Arabic labels, no speckles or busy texture. NOT a rectangular card; flowing hand-carved pointed wooden ends. Straight front view, no tilt/perspective. Only one isolated banner, full silhouette within image with tight transparent padding. TRUE transparent alpha background, no scenery. No text, icons, star shapes, crowns, characters or extra objects. Painted storybook adventure art at high resolution, understated dimensional shading.",
+      "path": "assets/ui/menu-sign-gold-v1.png"
+    },
+    {
+      "id": "panel",
+      "prompt": "Use case: stylized-concept. Asset type: one large blank menu parchment for a painterly family adventure game. Isolated vertical 3:4 parchment scroll on TRUE transparent alpha. Front-facing, no perspective. Unusual organic silhouette, gently irregular soft paper edges, subtly rolled top and bottom lips with tiny carved wooden corner grips, warm ivory broad smooth empty interior for dark Arabic text. Frame is very narrow, restrained natural amber edging, 90% interior blank cream, without ornamental marks or dark texture. Top and bottom nearly flat so panel can adapt to landscape or portrait. Charming premium storybook adventure matching golden sunlight and green islands. No rectangular application card, no drawn border rectangle, no text, letters, symbols, icons, characters, background, hanging ropes, heavy vines or objects. Entire object visible, tight transparent padding. Clear thin silhouette readable when reduced to phone menus.",
+      "path": "assets/ui/menu-scroll-v1.png"
+    },
+    {
+      "id": "token",
+      "prompt": "Use case: stylized-concept. Asset type: compact selector button for Adam's Summit painterly adventure game UI, one isolated blank token on TRUE transparent alpha background. Organic rounded lozenge almost square, warm ivory parchment face in a thin hand-carved amber wood rim, gently pointed four corners rather than rectangle, tiny emerald leaf at top-left. Front view, no perspective. Blank even light-cream center occupying 75% of face for a dark number or arrow rendered by game, no text, numbers, icons, symbols or extra objects. High resolution storybook material, quiet perimeter detail, soft warm shading matching wooden parchment adventure menu banners. Tight transparent padding, full silhouette visible.",
+      "path": "assets/ui/menu-token-v1.png"
+    }
+  ]
+}
