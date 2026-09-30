@@ -15,8 +15,8 @@ static func has_sensor(sample: Vector3) -> bool:
 static func lateral(sample: Vector3) -> float:
 	return clampf(sample.x / maxf(sample.length(), 0.001), -1.0, 1.0)
 
-static func steering(lateral_angle: float, neutral: float, gyro_z: float) -> float:
-	var angle := clampf(lateral_angle - neutral - gyro_z * GYRO_LEAD, -1.0, 1.0)
+static func steering(lateral_angle: float, neutral: float, gyro_z: float, sensitivity: float = 1.0) -> float:
+	var angle := clampf((lateral_angle - neutral - gyro_z * GYRO_LEAD) * clampf(sensitivity, 0.5, 1.5), -1.0, 1.0)
 	if absf(angle) <= DEAD_ZONE:
 		return 0.0
 	return signf(angle) * clampf((absf(angle) - DEAD_ZONE) / (FULL_STEER - DEAD_ZONE), 0.0, 1.0)

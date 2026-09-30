@@ -71,18 +71,27 @@ func run() -> void:
 	game.mobile = true
 	game.tv = false
 	game.show_settings()
-	var tilt_buttons = game.modal.get_children().filter(func(node): return node is Button and node.text.begins_with("الميلان:"))
-	check(tilt_buttons.size() == 1, "Phone settings expose optional tilt control")
-	if tilt_buttons.size() == 1:
-		tilt_buttons[0].pressed.emit()
-	check(game.tilt_enabled, "Tilt choice can be enabled")
-	check(FileAccess.get_file_as_string(game.storage_path).contains('"tilt_enabled":true'), "Tilt choice is saved")
+	check(game.tilt_enabled and game.tilt_sensitivity == 1 and game.drag_sensitivity == 1, "Fresh installs steer with balanced automatic defaults")
+	var control_buttons = game.modal.get_children().filter(func(node): return node is Button and node.text.begins_with("التحكم:"))
+	check(control_buttons.size() == 1, "Phone settings expose optional control customization")
+	if control_buttons.size() == 1: control_buttons[0].pressed.emit()
+	check(game.state == "controls", "Optional control page opens inside game")
+	game.tilt_sensitivity = 2; game.drag_sensitivity = 0; game.tilt_inverted = true
+	game.save_options()
+	game.tilt_sensitivity = 1; game.drag_sensitivity = 1; game.tilt_inverted = false
+	game.load_options()
+	check(game.tilt_sensitivity == 2 and game.drag_sensitivity == 0 and game.tilt_inverted, "Customized steering persists between launches")
+	check(Tilt.steering(0.16, 0.0, 0.0, 1.3) > Tilt.steering(0.16, 0.0, 0.0, 0.75), "Sensitivity changes actual steering response")
+	game.reset_control_defaults()
+	check(game.tilt_enabled and game.tilt_sensitivity == 1 and game.drag_sensitivity == 1 and not game.tilt_inverted, "Reset restores ready-to-play controls")
+	check(FileAccess.get_file_as_string(game.storage_path).contains('"tilt_enabled":true'), "Control defaults are saved")
 	game.state = "racing"
 	game.drag_id = 3
 	game.drag_target = game.model.players[0].p.x + 80.0
 	check(game.read_directions().x > 0.0, "Finger drag steers even while tilt is enabled")
 	game.stop_audio()
 	game.queue_free()
+	await process_frame
 	await process_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test-tilt-mud.json"))
 	print("TILT_MUD_TESTS: " + ("PASS" if failures == 0 else str(failures) + " FAILED"))

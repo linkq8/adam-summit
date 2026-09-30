@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.10 start screen and automatic control defaults
+
+The lobby uses the existing painted adventure world, Adam standing on a game platform, a strong gold start action, a world-island preview and separate Endless Climb action. Secondary wardrobe, difficulty, help and settings actions are smaller in hierarchy, with authored SVG navigation icons and explicit accessible button names. Phone/tablet safe areas and TV gamepad focus remain intact; no new background or character artwork is required. Decoration remains static in reduced-effects mode.
+
+New installs enable balanced tilt plus dragging. Starting and resuming automatically centre the current grip; there is no required manual calibration or system-settings flow. Optional in-game controls offer tilt plus drag or drag only, three sensitivity levels for each, inverted tilt and reset of control preferences. Stored earlier choices are preserved. Dragging and gamepads retain precedence. These changes leave course geometry and race physics unchanged. Local rendered previews cover tall and small phones, landscape tablet and Full HD TV; physical sensor responsiveness still requires a device run.
+
 ## v0.8.9 tilt steering and mud escapes
 
 Phone players may enable tilt steering in Settings. Gravity supplies a stable lateral angle, a small gyroscope lead reduces lag during a roll, and accelerometer data is a fallback. Enabling tilt, starting or resuming a run recenters the current grip; Settings also offers manual recentering. A dead zone and short smoothing reject hand tremor. Finger dragging temporarily takes control whenever it is used, and connected gamepads take priority. Android sensor inputs are enabled explicitly; TV controls remain unchanged.

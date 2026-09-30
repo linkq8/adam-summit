@@ -5,6 +5,10 @@ const Stage = preload("res://scripts/stage.gd")
 const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
+const MENU_ICONS = preload("res://assets/ui/menu-actions.svg")
+const MENU_GOLD := Color("f3c45e")
+const MENU_CREAM := Color("fff5dc")
+const MENU_TEAL := Color("173f3e")
 const ITEM_ART = preload("res://assets/ui/surprise-items-v2.png")
 const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
 var world_art: Texture2D
@@ -50,7 +54,12 @@ var sound_on := true
 var music_volume := 0.5
 var effects_volume := 0.7
 var haptics := true
-var tilt_enabled := false
+var tilt_enabled := true
+var tilt_sensitivity := 1
+var drag_sensitivity := 1
+var tilt_inverted := false
+const CONTROL_GAINS := [0.75, 1.0, 1.3]
+const CONTROL_NAMES := ["هادئة", "متوازنة", "سريعة"]
 var tilt_neutral := 0.0
 var tilt_filtered := 0.0
 var tilt_needs_calibration := true
@@ -250,6 +259,7 @@ func layout_ui() -> void:
 	if state == "lobby": show_lobby()
 	elif state == "paused": show_pause()
 	elif state == "settings": show_settings()
+	elif state == "controls": show_control_settings()
 	elif state == "tutorial": show_tutorial()
 	elif state == "worlds": show_worlds()
 	elif state == "wardrobe": show_wardrobe()
@@ -332,6 +342,62 @@ func portrait(parent: Node, row: int, at: Vector2, height: float, frame: int = 0
 	parent.add_child(sprite)
 	return sprite
 
+func menu_icon(parent: Node, index: int, rect: Rect2) -> void:
+	var icon := TextureRect.new()
+	var atlas := AtlasTexture.new()
+	atlas.atlas = MENU_ICONS
+	atlas.region = Rect2(index * 64, 0, 64, 64)
+	icon.texture = atlas
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.position = rect.position; icon.size = rect.size
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(icon)
+
+func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, icon: int, primary: bool = false) -> Button:
+	var b := button(modal, "", rect, callback, primary)
+	b.name = "MenuAction" + str(icon)
+	b.tooltip_text = text
+	b.accessibility_name = text
+	b.accessibility_description = detail
+	for kind in ["normal", "hover", "pressed"]:
+		var style: StyleBoxFlat = b.get_theme_stylebox(kind).duplicate()
+		style.set_border_width_all(0)
+		style.set_corner_radius_all(18)
+		style.shadow_color = Color(0.02, 0.12, 0.12, 0.20)
+		style.shadow_size = 9
+		style.shadow_offset = Vector2(0, 5)
+		if kind == "pressed": style.bg_color = style.bg_color.darkened(0.10)
+		b.add_theme_stylebox_override(kind, style)
+	var has_detail := not detail.is_empty()
+	var icon_size := 38.0 if rect.size.y >= 70 else 28.0
+	menu_icon(b, icon, Rect2(rect.size.x - icon_size - 18, (rect.size.y - icon_size) / 2, icon_size, icon_size))
+	var title_size := (32 if primary else 27) if rect.size.x > 260 else 21
+	label(b, text, Rect2(16, 7 if has_detail else 0, rect.size.x - icon_size - 44, 40 if has_detail else rect.size.y), title_size, INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	if has_detail:
+		label(b, detail, Rect2(16, 52 if primary else 47, rect.size.x - icon_size - 44, 26), 16, Color("365954"), HORIZONTAL_ALIGNMENT_RIGHT)
+	return b
+
+func menu_world(rect: Rect2) -> void:
+	var b := menu_action(Worlds.WORLDS[level / 3], "المرحلة %d–%d • اختر وجهتك" % [level / 3 + 1, level % 3 + 1], rect, show_worlds, 5)
+	# The actual world's illustration replaces the navigation icon.
+	b.get_child(0).hide()
+	b.get_child(1).size.x = rect.size.x - 116
+	b.get_child(2).size.x = rect.size.x - 116
+	island(b, level / 3, Rect2(rect.size.x - 82, -9, 75, rect.size.y + 18))
+
+func menu_landing(at: Vector2, width: float) -> void:
+	var ground := Sprite2D.new()
+	ground.texture = Stage.PLATFORM
+	ground.material = ShaderMaterial.new()
+	ground.material.shader = Stage.KEY
+	ground.material.set_shader_parameter("magenta_key", true)
+	ground.position = at - Vector2(0, width * 0.035)
+	ground.centered = false
+	ground.scale = Vector2(width / ground.texture.get_width(), width * 0.25 / ground.texture.get_height())
+	ground.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	modal.add_child(ground)
+
 func show_lobby() -> void:
 	if endless_mode:
 		endless_mode = false
@@ -340,20 +406,35 @@ func show_lobby() -> void:
 	if tv: show_tv_lobby(); return
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var r := menu_rect
-	var shift := maxf(0, 820 - r.size.y)
-	var title := label(modal, "مغامرات آدم", Rect2(r.position + Vector2(0, -10), Vector2(r.size.x, 100)), 64, Color("fff4d4"))
-	title.add_theme_color_override("font_outline_color", Color("173f3e")); title.add_theme_constant_override("outline_size", 6)
-	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 214 - shift / 2), 245 - shift)
-	box(modal, Rect2(r.position + Vector2(0, 343 - shift), Vector2(r.size.x, r.size.y - 343 + shift)), Color("123f40"), Color.TRANSPARENT, 24)
-	button(modal, "ابدأ المغامرة", Rect2(r.position + Vector2(18, 364 - shift), Vector2(r.size.x - 36, 64)), begin_adventure, true).grab_focus()
-	button(modal, "المرحلة %d–%d" % [level / 3 + 1, level % 3 + 1], Rect2(r.position + Vector2(18, 443 - shift), Vector2((r.size.x - 45) * 0.52, 56)), show_worlds)
-	button(modal, "صعود لا نهائي", Rect2(r.position + Vector2(27 + (r.size.x - 45) * 0.52, 443 - shift), Vector2((r.size.x - 45) * 0.48, 56)), start_endless)
-	button(modal, "ملابس آدم", Rect2(r.position + Vector2(18, 513 - shift), Vector2(r.size.x - 36, 54)), func(): show_wardrobe(true))
-	button(modal, DIFFICULTIES[difficulty], Rect2(r.position + Vector2(18, 581 - shift), Vector2(r.size.x - 36, 54)), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby())
-	button(modal, "الإعدادات", Rect2(r.position + Vector2(18, 649 - shift), Vector2((r.size.x - 48) / 2, 54)), func(): settings_return = "lobby"; show_settings())
-	button(modal, "كيف ألعب؟", Rect2(r.position + Vector2(r.size.x / 2 + 6, 649 - shift), Vector2((r.size.x - 48) / 2, 54)), show_tutorial)
-	if not saved_game.is_empty(): button(modal, "أكمل رحلتك المحفوظة", Rect2(r.position + Vector2(18, 717 - shift), Vector2(r.size.x - 36, 54)), restore_journey)
+	var content_h := 488.0 + (84.0 if not saved_game.is_empty() else 0.0)
+	var available := canvas_size.y - safe_top - safe_bottom
+	var hero_h := minf(420, available - content_h)
+	var width := minf(490, canvas_size.x - 40)
+	var r := Rect2((canvas_size.x - width) / 2, safe_top + maxf(0, (available - content_h - hero_h) / 2), width, content_h + hero_h)
+	var title := label(modal, "مغامرات آدم", Rect2(r.position + Vector2(0, -8), Vector2(width, 86)), 62, MENU_CREAM)
+	title.add_theme_color_override("font_outline_color", INK); title.add_theme_constant_override("outline_size", 6)
+	var subtitle := label(modal, "القمة التالية… تنتظرك", Rect2(r.position + Vector2(0, 72), Vector2(width, 32)), 20, MENU_CREAM)
+	subtitle.add_theme_color_override("font_outline_color", INK); subtitle.add_theme_constant_override("outline_size", 3)
+	var hero_size := minf(270, hero_h - 116)
+	var feet := r.position + Vector2(width / 2, hero_h - 14)
+	menu_landing(feet + Vector2(-112, -2), 224)
+	illustration = portrait(modal, costume, feet - Vector2(0, hero_size / 2), hero_size)
+	var y := r.position.y + hero_h + 18
+	menu_action("ابدأ المغامرة", "القفز تلقائي… وأنت تختار الطريق", Rect2(r.position.x, y, width, 80), begin_adventure, 0, true).grab_focus()
+	y += 96
+	menu_world(Rect2(r.position.x, y, width, 80))
+	y += 96
+	menu_action("صعود لا نهائي", "ارتفاع أعلى، تحدٍّ أكبر", Rect2(r.position.x, y, width, 76), start_endless, 1)
+	y += 92
+	var half := (width - 12) / 2
+	menu_action("ملابس آدم", "", Rect2(r.position.x + half + 12, y, half, 70), func(): show_wardrobe(true), 2)
+	menu_action(DIFFICULTIES[difficulty], "", Rect2(r.position.x, y, half, 70), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby(), 7)
+	y += 84
+	menu_action("الإعدادات", "", Rect2(r.position.x + half + 12, y, half, 70), func(): settings_return = "lobby"; show_settings(), 3)
+	menu_action("كيف ألعب؟", "", Rect2(r.position.x, y, half, 70), show_tutorial, 4)
+	if not saved_game.is_empty():
+		y += 84
+		menu_action("أكمل رحلتك المحفوظة", "", Rect2(r.position.x, y, width, 64), restore_journey, 8)
 	queue_redraw()
 
 func controller_text(i: int) -> String:
@@ -539,7 +620,7 @@ func _physics_process(dt: float) -> void:
 			var hint_window: bool = model.elapsed < 8.0 or fmod(model.elapsed, 18.0) < 4.0
 			guide_label.visible = abilities != "" or hint_window
 			if is_instance_valid(guide_panel): guide_panel.visible = guide_label.visible
-			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if level == 0 and int(model.elapsed / 18.0) % 2 == 1 else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع"))
+			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if level == 0 and int(model.elapsed / 18.0) % 2 == 1 else ("أمِل الهاتف أو اسحب • الأسهم الذهبية: طريق أسرع" if tilt_enabled and mobile else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")))
 		clock_label.text = "%02d:%02d" % [int(model.elapsed) / 60, int(model.elapsed) % 60]
 
 func handle_game_events(events: Array[Dictionary]) -> void:
@@ -610,7 +691,7 @@ func read_tilt() -> float:
 		tilt_neutral = lateral_angle
 		tilt_filtered = 0.0
 		tilt_needs_calibration = false
-	var target: float = Tilt.steering(lateral_angle, tilt_neutral, Input.get_gyroscope().z)
+	var target: float = Tilt.steering(lateral_angle, tilt_neutral, Input.get_gyroscope().z, CONTROL_GAINS[tilt_sensitivity]) * (-1.0 if tilt_inverted else 1.0)
 	tilt_filtered = lerpf(tilt_filtered, target, 0.35)
 	return 0.0 if absf(tilt_filtered) < 0.02 else tilt_filtered
 
@@ -627,7 +708,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_B:
 		if state == "paused": resume_race()
 		elif state in ["racing", "countdown"]: pause_race()
-		elif state == "updates": show_settings()
+		elif state in ["updates", "controls"]: show_settings()
 		else: show_lobby()
 		get_viewport().set_input_as_handled()
 		return
@@ -689,7 +770,7 @@ func _input(event: InputEvent) -> void:
 		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
-			elif state == "updates": show_settings()
+			elif state in ["updates", "controls"]: show_settings()
 			elif state in ["settings", "tutorial", "players", "worlds", "wardrobe", "finish"]: show_lobby()
 			get_viewport().set_input_as_handled()
 		elif event.physical_keycode == KEY_F3:
@@ -770,13 +851,40 @@ func show_settings() -> void:
 		var control_w := (r.size.x - 50) * 0.5
 		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, control_y), Vector2(control_w, 54)), func(): haptics = not haptics; save_options(); show_settings())
 		if mobile:
-			button(modal, "الميلان: " + ("مفعّل" if tilt_enabled else "مغلق"), Rect2(r.position + Vector2(30 + control_w, control_y), Vector2(control_w, 54)), func(): tilt_enabled = not tilt_enabled; recenter_tilt(); save_options(); show_settings())
-			if tilt_enabled:
-				button(modal, "توسيط الميلان الآن", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 46)), func(): recenter_tilt(); show_settings())
+			button(modal, "التحكم: " + ("ميلان وسحب" if tilt_enabled else "سحب فقط"), Rect2(r.position + Vector2(30 + control_w, control_y), Vector2(control_w, 54)), show_control_settings)
+			label(modal, "جاهز تلقائيًا • خيارات إضافية بالداخل", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 32)), 17)
+
 	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
 		else: show_lobby(), true).grab_focus()
+
+func reset_control_defaults() -> void:
+	tilt_enabled = true
+	tilt_sensitivity = 1
+	drag_sensitivity = 1
+	tilt_inverted = false
+	recenter_tilt()
+	save_options()
+
+func show_control_settings() -> void:
+	state = "controls"
+	clear_modal(); hud.hide()
+	for v in views: v.hide()
+	var r := menu_rect
+	box(modal, r, MENU_CREAM, Color("f3d080"), 30)
+	label(modal, "تحرّك على راحتك", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
+	label(modal, "كل شيء جاهز من أول تشغيل
+يتوسّط الميلان تلقائيًا عند البدء والاستئناف", Rect2(r.position + Vector2(20, 100), Vector2(r.size.x - 40, 68)), 18)
+	button(modal, "طريقة التحكم: " + ("ميلان وسحب" if tilt_enabled else "سحب فقط"), Rect2(r.position + Vector2(20, 188), Vector2(r.size.x - 40, 64)), func(): tilt_enabled = not tilt_enabled; recenter_tilt(); save_options(); show_control_settings())
+	var sensitivity := button(modal, "حساسية الميلان: " + CONTROL_NAMES[tilt_sensitivity], Rect2(r.position + Vector2(20, 262), Vector2(r.size.x - 40, 64)), func(): tilt_sensitivity = (tilt_sensitivity + 1) % 3; save_options(); show_control_settings())
+	sensitivity.disabled = not tilt_enabled
+	button(modal, "حساسية السحب: " + CONTROL_NAMES[drag_sensitivity], Rect2(r.position + Vector2(20, 336), Vector2(r.size.x - 40, 64)), func(): drag_sensitivity = (drag_sensitivity + 1) % 3; save_options(); show_control_settings())
+	var invert := button(modal, "عكس اتجاه الميلان: " + ("نعم" if tilt_inverted else "لا"), Rect2(r.position + Vector2(20, 410), Vector2(r.size.x - 40, 64)), func(): tilt_inverted = not tilt_inverted; save_options(); show_control_settings())
+	invert.disabled = not tilt_enabled
+	label(modal, "السحب يأخذ الأولوية أثناء لمس الشاشة", Rect2(r.position + Vector2(20, 481), Vector2(r.size.x - 40, 36)), 18)
+	button(modal, "استعادة التحكم الافتراضي", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 64)), func(): reset_control_defaults(); show_control_settings())
+	button(modal, "تم", Rect2(r.position + Vector2(25, r.size.y - 82), Vector2(r.size.x - 50, 64)), show_settings, true).grab_focus()
 
 func show_finish() -> void:
 	state = "finish"
@@ -876,7 +984,10 @@ func load_options() -> void:
 	music_volume = clampf(float(data.get("music", 0.5)), 0, 1)
 	effects_volume = clampf(float(data.get("effects", 0.7)), 0, 1)
 	haptics = bool(data.get("haptics", true))
-	tilt_enabled = bool(data.get("tilt_enabled", false))
+	tilt_enabled = bool(data.get("tilt_enabled", true))
+	tilt_sensitivity = clampi(int(data.get("tilt_sensitivity", 1)), 0, 2)
+	drag_sensitivity = clampi(int(data.get("drag_sensitivity", 1)), 0, 2)
+	tilt_inverted = bool(data.get("tilt_inverted", false))
 	tilt_needs_calibration = true
 	tutorial_seen = bool(data.get("tutorial", false)) and int(data.get("controls_version", 0)) == 1
 	if data.get("saved") is Dictionary: saved_game = data.saved
@@ -885,7 +996,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tilt_sensitivity": tilt_sensitivity, "drag_sensitivity": drag_sensitivity, "tilt_inverted": tilt_inverted, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -934,7 +1045,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		if state in ["racing", "countdown"]: pause_race()
 		elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
-		elif state == "updates": show_settings()
+		elif state in ["updates", "controls"]: show_settings()
 		elif state != "lobby": show_lobby()
 		else: get_tree().quit()
 
@@ -998,7 +1109,7 @@ func _draw() -> void:
 		var size := art.get_size() * ratio
 		draw_texture_rect(art, Rect2(Vector2(-(size.x - canvas_size.x) * (0.3 if not tv else 0.5), (canvas_size.y - size.y) / 2), size), false)
 		return
-	if state in ["players", "worlds", "wardrobe", "settings", "updates", "tutorial"]:
+	if state in ["players", "worlds", "wardrobe", "settings", "controls", "updates", "tutorial"]:
 		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("f5edda"))
 		draw_rect(Rect2(0, 0, canvas_size.x, 12), Color("cf7652"))
 		return
@@ -1012,7 +1123,7 @@ func _draw() -> void:
 	draw_texture_rect(BACKGROUND, Rect2((canvas_size - size) / 2, size), false)
 
 func move_drag(dx: float) -> void:
-	drag_target = clampf(drag_target + dx / maxf(0.01, stages[0].scale.x), 24, Model.WIDTH - 24)
+	drag_target = clampf(drag_target + dx * CONTROL_GAINS[drag_sensitivity] / maxf(0.01, stages[0].scale.x), 24, Model.WIDTH - 24)
 
 func show_worlds() -> void:
 	if tv:
@@ -1105,23 +1216,30 @@ func selection_surface(title: String, subtitle: String, next_state: String) -> v
 func show_tv_lobby() -> void:
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var title := label(modal, "مغامرات آدم", Rect2(730, 50, 480, 114), 76, Color("fff3d0"))
-	label(modal, "القمة التالية… تنتظرك", Rect2(760, 165, 430, 37), 23, Color("e9d9ae"))
-	var spacing := 170.0 if player_count > 2 else 215.0
-	var height := 270.0 if player_count > 2 else 355.0
+	var title := label(modal, "مغامرات آدم", Rect2(65, 43, 640, 124), 88, MENU_CREAM)
+	title.add_theme_color_override("font_outline_color", INK); title.add_theme_constant_override("outline_size", 5)
+	var subtitle := label(modal, "القمة التالية… تنتظرك", Rect2(82, 157, 606, 40), 26, MENU_CREAM)
+	subtitle.add_theme_color_override("font_outline_color", INK); subtitle.add_theme_constant_override("outline_size", 3)
+	menu_landing(Vector2(110, 567), 535)
+	var spacing := 126.0 if player_count > 2 else 202.0
+	var height := 268.0 if player_count > 2 else 340.0
 	for i in range(player_count):
-		var at := Vector2(360 - (player_count - 1) * spacing / 2 + i * spacing, 496 - (18 if i % 2 == 0 else 0))
-		var avatar := portrait(modal, player_outfits[i] if player_count > 1 else costume, at, height, 0, player_packs[i] if player_count > 1 else backpack)
-	button(modal, "ابدأ المغامرة", Rect2(792, 232, 380, 76), begin_adventure, true).grab_focus()
-	button(modal, "صعود لا نهائي", Rect2(792, 618, 380, 52), start_endless)
-	button(modal, "العالم: " + Worlds.WORLDS[level / 3], Rect2(792, 327, 380, 59), show_worlds)
-	button(modal, "اللاعبون والملابس · %d" % player_count, Rect2(792, 402, 380, 59), show_players)
-	button(modal, DIFFICULTIES[difficulty], Rect2(792, 477, 183, 57), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby())
+		var feet := Vector2(376 - (player_count - 1) * spacing / 2 + i * spacing, 575)
+		portrait(modal, player_outfits[i] if player_count > 1 else costume, feet - Vector2(0, height / 2), height, 0, player_packs[i] if player_count > 1 else backpack)
+	var x := 774.0; var w := 410.0
+	menu_action("ابدأ المغامرة", "اختر طريقك إلى القمة", Rect2(x, 80, w, 88), begin_adventure, 0, true).grab_focus()
+	menu_world(Rect2(x, 188, w, 82))
+	menu_action("رفاق المغامرة", "اللاعبون والملابس · %d" % player_count, Rect2(x, 288, w, 82), show_players, 6)
+	var half := (w - 14) / 2
+	menu_action(DIFFICULTIES[difficulty], "", Rect2(x, 389, half, 58), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby(), 7)
 	var mode_name := "سباق المفاجآت" if surprise_mode else ("تعاون" if cooperative else "سباق")
-	button(modal, mode_name, Rect2(989, 477, 183, 57), cycle_multiplayer_mode)
-	button(modal, "الإعدادات", Rect2(792, 552, 183, 54), func(): settings_return = "lobby"; show_settings())
-	button(modal, "كيف ألعب؟", Rect2(989, 552, 183, 54), show_tutorial)
-	label(modal, "اختر عالمك. جهّز رفيقك. وانطلق!", Rect2(90, 641, 580, 43), 27, Color("fff5d4"))
+	menu_action(mode_name, "", Rect2(x + half + 14, 389, half, 58), cycle_multiplayer_mode, 6)
+	menu_action("صعود لا نهائي", "ارتفاع أعلى، تحدٍّ أكبر", Rect2(x, 466, w, 78), start_endless, 1)
+	menu_action("الإعدادات", "", Rect2(x + half + 14, 564, half, 56), func(): settings_return = "lobby"; show_settings(), 3)
+	menu_action("كيف ألعب؟", "", Rect2(x, 564, half, 56), show_tutorial, 4)
+	var hint := label(modal, "اختر عالمك. جهّز رفيقك. وانطلق!", Rect2(90, 654, 580, 36), 26, MENU_CREAM)
+	hint.add_theme_color_override("font_outline_color", INK); hint.add_theme_constant_override("outline_size", 3)
+	label(modal, "الأسهم للتنقّل • الزر السفلي للاختيار", Rect2(x, 644, w, 36), 18, MENU_CREAM)
 	queue_redraw()
 
 func cycle_multiplayer_mode() -> void:
