@@ -1,0 +1,76 @@
+{
+  "generator": "built-in image_gen",
+  "assets": [
+    {
+      "path": "assets/ui/letter-title-v1.png",
+      "prompt": "Use case: logo-brand. Asset type: original Arabic hand-lettered game title for Adam's Summit. Text verbatim exactly: \"مغامرات آدم\". Draw these Arabic words yourself as bespoke adventure lettering, correctly connected Arabic letters, all dots and the madda above آدم intact. One horizontal line, readable right-to-left. Thick confidently hand-painted sculpted characters, subtle irregular rhythm, warm ivory-gold faces with restrained amber depth and a strong dark forest-teal outer outline. Premium illustrated storybook adventure title, energetic but readable, not a standard typeset font, not ornate calligraphy. No other text, no latin letters, no logo borrowed from another game. Only the isolated lettering on genuine transparent alpha background. No plaque, banner, characters, props, foliage or scenery. Tight clean silhouette with generous enough padding to preserve dots and outline. Wide approximately 4:1 title, high resolution, legible over a bright painted sky and at phone size.",
+      "text": "مغامرات آدم"
+    },
+    {
+      "path": "assets/ui/letter-actions-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: production Arabic hand-lettered UI label SPRITE ATLAS, one cohesive typography asset. Transparent PNG landscape 2:1 aspect, STRICT 4 columns x 4 rows equal cells, no cell outlines or numbers. Read cell positions in LEFT-TO-RIGHT spatial order, and each Arabic phrase itself correctly reads RIGHT-TO-LEFT. Each cell holds exactly its assigned phrase on ONE line, centered, with 10% clear cell margins. Bespoke bold painted adventure lettering, beautiful confident hand-shaped Arabic connected letters, slight organic rhythm, dark forest-teal #173f3e solid faces with thin warm ivory outline and very restrained amber offset depth. Small-screen legibility first: no swashes, tiny flourishes or excessive 3D. Consistent character cap-height across cells, longer phrases smaller only to fit. No ordinary system typeface. Exact text, dots/hamzas/madda preserved. Row 1: \"لاعب واحد\" | \"لاعبان\" | \"الإعدادات\" | \"كيف ألعب؟\". Row 2: \"اللبس\" | \"المرحلة\" | \"طريقة اللعب\" | \"ابدأ اللعب\". Row 3: \"رجوع\" | \"الرئيسية\" | \"مغامرة لاعب واحد\" | \"مغامرة لاعبين\". Row 4: \"مغامرة 3 لاعبين\" | \"مغامرة 4 لاعبين\" | \"أكمل رحلتك المحفوظة\" | \"تم اختيار الملابس\". TRUE transparent background, no banners, signs, panels, icons, scenery, ornaments, characters, grid lines, captions, labels or extra text. All 16 phrases separate with generous transparent gutters, never touching another cell. High resolution.",
+      "cells_left_to_right": [
+        "لاعب واحد",
+        "لاعبان",
+        "الإعدادات",
+        "كيف ألعب؟",
+        "اللبس",
+        "المرحلة",
+        "طريقة اللعب",
+        "ابدأ اللعب",
+        "رجوع",
+        "الرئيسية",
+        "مغامرة لاعب واحد",
+        "مغامرة لاعبين",
+        "مغامرة 3 لاعبين",
+        "مغامرة 4 لاعبين",
+        "أكمل رحلتك المحفوظة",
+        "تم اختيار الملابس"
+      ]
+    },
+    {
+      "path": "assets/ui/letter-modes-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: production Arabic hand-lettered UI label SPRITE ATLAS. Input image is lettering STYLE REFERENCE ONLY; replace ALL its text with the following new phrases. Landscape 2:1 transparent PNG, STRICT 4 columns x 4 rows equally sized cells, exactly ONE phrase per cell. Cell order is LEFT-TO-RIGHT across rows, Arabic inside each cell is correct RIGHT-TO-LEFT. Keep reference's same bold hand-painted organic lettering: dark forest-teal faces, very thin ivory-gold outline, restrained amber edge, no added decorations. Clean readable Arabic with every dot, hamza and madda intact. Each phrase one line, centered in its cell with at least 7% clear horizontal and 20% vertical gutters. Consistent letter-height except long phrases may shrink to fit. Row1: \"مغامرة المراحل\" | \"صعود لا نهائي\" | \"سباق القمّة\" | \"تعاون\". Row2: \"سباق المفاجآت\" | \"رحلة هادئة\" | \"مغامرة\" | \"تحدّي\". Row3: \"رفاق المغامرة\" | \"عوالم آدم\" | \"خزانة آدم\" | \"على راحتك\". Row4: \"تحرّك على راحتك\" | \"نقفز إلى القمّة!\" | \"انتهت المحاولة\" | \"حاول مجددًا\". True transparent alpha background. No other text, numbered cells, grid lines, banners, props, icons, characters, scenery, ornaments or watermark. High resolution. Ensure words exactly match, especially نهائي with hamza and المفاجآت with madda.",
+      "cells_left_to_right": [
+        "مغامرة المراحل",
+        "صعود لا نهائي",
+        "سباق القمّة",
+        "تعاون",
+        "سباق المفاجآت",
+        "رحلة هادئة",
+        "مغامرة",
+        "تحدّي",
+        "رفاق المغامرة",
+        "عوالم آدم",
+        "خزانة آدم",
+        "على راحتك",
+        "تحرّك على راحتك",
+        "نقفز إلى القمّة!",
+        "انتهت المحاولة",
+        "حاول مجددًا"
+      ]
+    },
+    {
+      "path": "assets/ui/letter-worlds-v1.png",
+      "prompt": "Use case: stylized-concept. Asset type: final production Arabic lettering SPRITE ATLAS matching reference typography exactly. Input is STYLE REFERENCE ONLY; replace every word. STRICT 4 columns x 4 rows equal cells, landscape 2:1 transparent PNG, no grid. Cell order spatially LEFT to RIGHT; phrases internally Arabic right-to-left. One centered single-line phrase per cell with 8% clear horizontal and 20% vertical padding. Consistent readable bold hand-shaped painted lettering, dark forest teal faces, thin ivory-gold edge, restrained warm amber depth, organic rhythm. Correct Arabic connections and all dots/hamzas/madda; no swashes, no props or tiny decorative strokes. Row1: \"الحديقة\" | \"السحاب\" | \"الثلج\" | \"الشاطئ\". Row2: \"الغابة المضيئة\" | \"إلى أين نذهب؟\" | \"استراحة صغيرة\" | \"أكمل\". Row3: \"وصلنا إلى القمّة!\" | \"عالم مكتمل!\" | \"نجحنا معًا!\" | \"وصلتما معًا!\". Row4: \"تم\" | \"هيا نلعب!\" | \"فهمت • رجوع\" | \"رجوع إلى تجهيز اللعب\". Only these 16 exact phrases, separated by transparent gutters. No other text, numbers, captions, banners, frame, signs, icons, background or watermark. Genuine transparent alpha.",
+      "cells_left_to_right": [
+        "الحديقة",
+        "السحاب",
+        "الثلج",
+        "الشاطئ",
+        "الغابة المضيئة",
+        "إلى أين نذهب؟",
+        "استراحة صغيرة",
+        "أكمل",
+        "وصلنا إلى القمّة!",
+        "عالم مكتمل!",
+        "نجحنا معًا!",
+        "وصلتما معًا!",
+        "رجوع إلى تجهيز اللعب",
+        "فهمت • رجوع",
+        "هيا نلعب!",
+        "تم"
+      ]
+    }
+  ]
+}

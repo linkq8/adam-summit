@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.13 bespoke Arabic illustrated lettering
+
+The title is a generated ivory/gold adventure wordmark. Three transparent lettering atlases hold 48 reviewed Arabic phrases for home and setup choices, modes, difficulty, world names, wardrobe/settings headers, pause/help and finish headings. These use dark teal faces and thin ivory/gold edges matching the generated wooden signs. Small explanations, dynamic scores, stage numbers and status/configuration sentences remain live text for readability. The original Arabic text and accessible button names are preserved even where only the illustrated glyphs are drawn.
+
+Four shared textures and cached AtlasTexture regions render the artwork with mipmaps and aspect-preserving fitting; no alpha scanning or image processing runs during gameplay. Source-dependent bounds are computed offline around real transparent gutters rather than assuming equal printed rows. Original alpha assets remain unchanged. The TextureRect expansion mode is set before assigning its texture to prevent native asset dimensions from expanding the control. Regression coverage checks rendered bounds, input pass-through and accessible names, alongside existing flow/UI/controller checks; asset-edge validation checks that crop bounds preserve the glyph silhouette. Local renders cover phone, tablet and TV. Prompts and actual cell order are recorded in design/LETTERING-0813.json.
+
 ## v0.8.12 generated adventure menu skin
 
 Four transparent generated assets replace plain menu cards: organic ivory and gold wooden parchment signs, a scroll for large menu sheets, and a compact carved selector token. Gold identifies the primary action and focused wide choice; a crisp drawn pointer additionally marks gamepad focus. Disabled choices keep readable ink on a muted surface. Arabic labels remain live text, inset away from the illustrated wood, and long button labels shrink within a bounded font range. The original PNG alpha is preserved; texture regions only trim unused transparent space at render time. Smooth mipmapped rendering keeps these static shared textures usable across phone, tablet and TV without per-frame image processing or blur effects. Gameplay HUD surfaces, menu hierarchy, physics and routes remain unchanged.

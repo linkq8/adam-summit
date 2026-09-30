@@ -5,6 +5,7 @@ const Stage = preload("res://scripts/stage.gd")
 const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
+const Lettering = preload("res://scripts/lettering.gd")
 const AdventureButton = preload("res://scripts/menu_button.gd")
 const SIGN_IVORY = preload("res://assets/ui/menu-sign-ivory-v1.png")
 const SIGN_GOLD = preload("res://assets/ui/menu-sign-gold-v1.png")
@@ -311,6 +312,7 @@ func label(parent: Node, text: String, rect: Rect2, font_size: int = 22, color: 
 	item.add_theme_color_override("font_color", color)
 	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(item)
+	Lettering.paint(item, text, Rect2(Vector2.ZERO, rect.size), alignment, font_size * 1.35)
 	return item
 
 func illustrated_style(texture: Texture2D, region: Rect2, tint: Color = Color.WHITE) -> StyleBoxTexture:
@@ -358,6 +360,8 @@ func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary
 	b.focus_entered.connect(b.queue_redraw)
 	b.focus_exited.connect(b.queue_redraw)
 	parent.add_child(b)
+	if Lettering.paint(b, text, Rect2(28, 0, rect.size.x - 56, rect.size.y), HORIZONTAL_ALIGNMENT_CENTER, minf(rect.size.y * 0.6, font_size * 1.5)):
+		b.accessibility_name = text
 	return b
 
 func clear_modal() -> void:
@@ -432,6 +436,7 @@ func menu_landing(at: Vector2, width: float) -> void:
 
 func menu_title(text: String, rect: Rect2, font_size: int = 62) -> void:
 	var title := label(modal, text, rect, font_size, MENU_CREAM)
+	if title.has_meta("painted_lettering"): return
 	title.add_theme_color_override("font_outline_color", INK)
 	title.add_theme_constant_override("outline_size", 5)
 

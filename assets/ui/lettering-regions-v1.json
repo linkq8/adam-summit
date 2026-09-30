@@ -1,0 +1,443 @@
+{
+	"أكمل": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			1432,
+			267,
+			270,
+			187
+		]
+	},
+	"أكمل رحلتك المحفوظة": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			903,
+			704,
+			421,
+			107
+		]
+	},
+	"إلى أين نذهب؟": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			492,
+			283,
+			405,
+			150
+		]
+	},
+	"ابدأ اللعب": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			1382,
+			273,
+			344,
+			152
+		]
+	},
+	"استراحة صغيرة": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			933,
+			301,
+			425,
+			125
+		]
+	},
+	"الإعدادات": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			944,
+			79,
+			344,
+			136
+		]
+	},
+	"الثلج": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			985,
+			80,
+			274,
+			177
+		]
+	},
+	"الحديقة": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			75,
+			89,
+			355,
+			162
+		]
+	},
+	"الرئيسية": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			511,
+			486,
+			315,
+			145
+		]
+	},
+	"السحاب": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			508,
+			95,
+			353,
+			152
+		]
+	},
+	"الشاطئ": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			1396,
+			84,
+			325,
+			160
+		]
+	},
+	"الغابة المضيئة": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			41,
+			303,
+			431,
+			132
+		]
+	},
+	"اللبس": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			102,
+			277,
+			254,
+			150
+		]
+	},
+	"المرحلة": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			518,
+			282,
+			292,
+			143
+		]
+	},
+	"انتهت المحاولة": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			933,
+			696,
+			400,
+			120
+		]
+	},
+	"تحدّي": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			1424,
+			287,
+			273,
+			159
+		]
+	},
+	"تحرّك على راحتك": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			21,
+			703,
+			443,
+			114
+		]
+	},
+	"تعاون": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			1412,
+			76,
+			288,
+			155
+		]
+	},
+	"تم": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			1484,
+			676,
+			155,
+			155
+		]
+	},
+	"تم اختيار الملابس": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			1363,
+			710,
+			383,
+			103
+		]
+	},
+	"حاول مجددًا": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			1364,
+			688,
+			387,
+			131
+		]
+	},
+	"خزانة آدم": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			952,
+			477,
+			361,
+			155
+		]
+	},
+	"رجوع": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			115,
+			496,
+			229,
+			134
+		]
+	},
+	"رجوع إلى تجهيز اللعب": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			25,
+			697,
+			461,
+			120
+		]
+	},
+	"رحلة هادئة": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			495,
+			297,
+			383,
+			130
+		]
+	},
+	"رفاق المغامرة": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			49,
+			500,
+			396,
+			129
+		]
+	},
+	"سباق القمّة": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			938,
+			97,
+			374,
+			133
+		]
+	},
+	"سباق المفاجآت": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			32,
+			286,
+			422,
+			135
+		]
+	},
+	"صعود لا نهائي": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			493,
+			93,
+			402,
+			143
+		]
+	},
+	"طريقة اللعب": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			921,
+			293,
+			391,
+			131
+		]
+	},
+	"عالم مكتمل!": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			512,
+			489,
+			400,
+			153
+		]
+	},
+	"على راحتك": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			1369,
+			496,
+			363,
+			133
+		]
+	},
+	"عوالم آدم": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			516,
+			475,
+			349,
+			157
+		]
+	},
+	"فهمت • رجوع": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			504,
+			690,
+			406,
+			131
+		]
+	},
+	"كيف ألعب؟": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			1369,
+			64,
+			367,
+			152
+		]
+	},
+	"لاعب واحد": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			48,
+			74,
+			363,
+			130
+		]
+	},
+	"لاعبان": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			535,
+			61,
+			261,
+			151
+		]
+	},
+	"مغامرات آدم": {
+		"asset": "res://assets/ui/letter-title-v1.png",
+		"region": [
+			47,
+			83,
+			2087,
+			572
+		]
+	},
+	"مغامرة": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			985,
+			286,
+			293,
+			154
+		]
+	},
+	"مغامرة 3 لاعبين": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			26,
+			708,
+			403,
+			112
+		]
+	},
+	"مغامرة 4 لاعبين": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			469,
+			701,
+			405,
+			115
+		]
+	},
+	"مغامرة المراحل": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			27,
+			103,
+			431,
+			119
+		]
+	},
+	"مغامرة لاعب واحد": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			907,
+			509,
+			419,
+			104
+		]
+	},
+	"مغامرة لاعبين": {
+		"asset": "res://assets/ui/letter-actions-v1.png",
+		"region": [
+			1371,
+			496,
+			378,
+			123
+		]
+	},
+	"نجحنا معًا!": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			950,
+			493,
+			378,
+			151
+		]
+	},
+	"نقفز إلى القمّة!": {
+		"asset": "res://assets/ui/letter-modes-v1.png",
+		"region": [
+			487,
+			698,
+			415,
+			124
+		]
+	},
+	"هيا نلعب!": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			967,
+			686,
+			366,
+			140
+		]
+	},
+	"وصلتما معًا!": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			1368,
+			491,
+			384,
+			146
+		]
+	},
+	"وصلنا إلى القمّة!": {
+		"asset": "res://assets/ui/letter-worlds-v1.png",
+		"region": [
+			36,
+			499,
+			455,
+			132
+		]
+	}
+}
