@@ -2,8 +2,8 @@ extends RefCounted
 # Keep the proven 60 Hz simulation step at every pace. Faster play schedules
 # more steps, rather than increasing collision distances or changing jump arcs.
 const STEP := 1.0 / 60.0
-const RATES := [0.8, 1.0, 1.2]
-const NAMES := ["هادئة", "عادية", "سريعة"]
+const RATES := [0.8, 1.0, 1.2, 1.5, 2.0]
+const NAMES := ["هادئة", "عادية", "سريعة", "سريعة جدًا", "قصوى"]
 var selection := 1
 var pending := 0.0
 var course: RefCounted

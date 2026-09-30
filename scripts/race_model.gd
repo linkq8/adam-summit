@@ -2,7 +2,10 @@ extends RefCounted
 ## Deterministic 60 Hz simulation; no graphics or controller dependencies.
 
 const Worlds = preload("res://scripts/worlds.gd")
-const WIDTH := 560.0
+const AUTHOR_WIDTH := 560.0
+const WIDTH := 680.0
+const CENTER := WIDTH * 0.5
+const COURSE_OFFSET := (WIDTH - AUTHOR_WIDTH) * 0.5
 const START_Y := 540.0
 const GAP := 102.0
 const STEPS := 52
@@ -63,7 +66,7 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 	_configure_spring_profiles()
 	for i in range(player_count):
 		players.append({
-			"p": Vector2(280, START_Y), "v": Vector2.ZERO,
+			"p": Vector2(CENTER, START_Y), "v": Vector2.ZERO,
 			"checkpoint": 0, "highest": 0, "landed": 0, "stars": 0,
 			"branch_hits": {}, "branch_collected": {}, "powers_taken": {},
 			"shield": 0.0, "magnet": 0.0, "bubble": false,
@@ -71,9 +74,9 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 			"camera": 0.0, "finish": -1.0, "face": 1.0,
 			"invulnerable": 0.0, "attack_immunity": 0.0,
 			"rescues": 0, "squash": 0.0, "stun": 0.0, "trail": [],
-			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0, "pending_jump_target": -1, "pending_jump_target_x": 280.0,
+			"hold": 0.0, "hold_platform": -1, "pending_jump_scale": 1.0, "pending_jump_target": -1, "pending_jump_target_x": CENTER,
 			"hold_kind": "", "pending_delay": 0.0, "pending_kind": "", "boost_jumps": 0,
-			"launch_target": -1, "launch_target_x": 280.0,
+			"launch_target": -1, "launch_target_x": CENTER,
 			"ink": 0.0, "invisible": 0.0, "landing_flash": 0.0,
 			"ink_seed": 0, "inventory": -1
 		})
@@ -114,7 +117,7 @@ func _build_adventure_platforms() -> void:
 			plat.durability = capacity
 	for start in FORK_STARTS:
 		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
-		var side := shortcut_edge if platforms[start - 1].x < 280 else WIDTH - shortcut_edge
+		var side := shortcut_edge if platforms[start - 1].x < 280 else AUTHOR_WIDTH - shortcut_edge
 		var shortcut_lift: float = [0.0, 28.0, 40.0][stage_kind]
 		if level == 10:
 			shortcut_lift = 0.0
@@ -163,7 +166,7 @@ func _build_adventure_platforms() -> void:
 			_clear_platform_hazards(plat)
 	for start in FORK_STARTS:
 		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
-		var side := shortcut_edge if platforms[start - 1].x < 280 else WIDTH - shortcut_edge
+		var side := shortcut_edge if platforms[start - 1].x < 280 else AUTHOR_WIDTH - shortcut_edge
 		for j in range(start, start + 3):
 			if platforms[j].has("branch_x"):
 				platforms[j].branch_x = side
@@ -181,6 +184,51 @@ func _build_adventure_platforms() -> void:
 	_configure_mud_escapes()
 	platforms[STEPS].x = 280.0
 	platforms[STEPS].w = 300.0
+	_widen_and_add_routes()
+
+func _widen_and_add_routes() -> void:
+	# Preserve the authored jump distances, then use the larger arena for extra
+	# side landings. Broadening a route by stretching every gap would break jumps.
+	for i in range(platforms.size()):
+		var plat: Dictionary = platforms[i]
+		plat.x += COURSE_OFFSET
+		plat.w *= 0.90 if plat.checkpoint else 0.84
+		if i in STEERING_GATES or i - 1 in STEERING_GATES:
+			plat.x += 10.0 if float(plat.x) < CENTER else -10.0
+		if plat.has("branch_x"):
+			plat.branch_x += COURSE_OFFSET
+			plat.branch_w *= 0.88
+			# Compact fork landings need a little more horizontal reach margin.
+			if i in FORK_STARTS or i - 1 in FORK_STARTS or i - 2 in FORK_STARTS:
+				plat.branch_x += 30.0 if float(plat.branch_x) < CENTER else -30.0
+		if plat.mud:
+			plat.mud_half_width = float(plat.w) * 0.16
+	platforms[0].w = 400.0
+	platforms[STEPS].w = 250.0
+	for i in range(3, STEPS - 1):
+		var plat: Dictionary = platforms[i]
+		if plat.has("branch_x") or plat.checkpoint or i in STEERING_GATES or i - 1 in STEERING_GATES:
+			continue
+		var previous_x: float = platforms[i - 1].x
+		var next_x: float = platforms[i + 1].x
+		var left := maxf(70.0, maxf(previous_x - 145.0, next_x - 145.0))
+		var right := minf(WIDTH - 70.0, minf(previous_x + 145.0, next_x + 145.0))
+		for neighbor in [platforms[i - 1], platforms[i + 1]]:
+			if neighbor.has("branch_x"):
+				left = maxf(left, float(neighbor.branch_x) - 145.0)
+				right = minf(right, float(neighbor.branch_x) + 145.0)
+		if left > right:
+			continue
+		var side := left if float(plat.x) >= CENTER else right
+		var branch_width: float = [96.0, 84.0, 76.0][difficulty]
+		if absf(side - float(plat.x)) < (float(plat.w) + branch_width) * 0.5 + 8.0:
+			continue
+		plat.branch_x = side
+		plat.branch_y = float(plat.y)
+		plat.branch_w = branch_width
+		plat.branch_durability = 0
+		plat.branch_safe = true
+		plat.shortcut = false
 
 func _configure_mud_escapes() -> void:
 	for i in range(1, STEPS):
@@ -199,33 +247,49 @@ func _configure_mud_escapes() -> void:
 
 func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 	if absolute_index == 0:
-		return {"x": 280.0, "y": START_Y, "w": 490.0, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
+		return {"x": CENTER, "y": START_Y, "w": 400.0, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	# Approach the physics-safe limits gradually without a hard difficulty step.
 	var tier: float = float(absolute_index) / (float(absolute_index) + 100.0)
 	var gap: float = [81.0, 97.0, 109.0, 89.0, 117.0, 92.0][absolute_index % 6] + tier * 11.0
-	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7]
+	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7] + COURSE_OFFSET
 	var previous_x: float = float(platforms[-1].x)
 	var lane: float = clampf(desired_lane, previous_x - 145.0, previous_x + 145.0)
-	var width: float = maxf(88.0, [178.0, 150.0, 132.0, 158.0][absolute_index % 4] - tier * 39.0)
+	var width: float = maxf(74.0, ([178.0, 150.0, 132.0, 158.0][absolute_index % 4] - tier * 39.0) * 0.84)
 	var plat: Dictionary = {"x": lane, "y": previous_y - gap, "w": width, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	if absolute_index > 8 and absolute_index % 11 == 6:
 		plat.durability = 1
 		plat.drop_on_contact = true
-		plat.branch_x = clampf(lane + (110.0 if lane < 280.0 else -110.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
+		plat.branch_x = clampf(lane + (110.0 if lane < CENTER else -110.0), maxf(70.0, previous_x - 145.0), minf(WIDTH - 70.0, previous_x + 145.0))
 		plat.branch_y = plat.y
-		plat.branch_w = 98.0 - tier * 14.0
+		plat.branch_w = (98.0 - tier * 14.0) * 0.88
 		plat.branch_durability = 0
 		plat.branch_safe = true
 	elif absolute_index > 12 and absolute_index % 17 == 9:
 		plat.mud = true
 		plat.mud_half_width = width * 0.16
-		plat.branch_x = clampf(lane + (100.0 if lane < 280.0 else -100.0), maxf(120.0, previous_x - 145.0), minf(440.0, previous_x + 145.0))
+		plat.branch_x = clampf(lane + (100.0 if lane < CENTER else -100.0), maxf(70.0, previous_x - 145.0), minf(WIDTH - 70.0, previous_x + 145.0))
 		plat.branch_y = plat.y - minf(18.0, maxf(0.0, 135.0 - gap))
-		plat.branch_w = 98.0 - tier * 14.0
+		plat.branch_w = (98.0 - tier * 14.0) * 0.88
 		plat.branch_durability = 0
 		plat.branch_safe = true
 	elif absolute_index > 18 and absolute_index % 13 == 4:
 		plat.moving = true
+	if not plat.has("branch_x") and absolute_index > 2 and absolute_index % 3 == 0:
+		# Same-height alternatives remain reachable in both directions; the next
+		# main landing cannot be farther away than the measured jump envelope.
+		var next_lane: float = clampf(float([390, 170, 315, 225, 365, 195, 280][(absolute_index + 1) % 7]) + COURSE_OFFSET, lane - 145.0, lane + 145.0)
+		var left := maxf(70.0, maxf(previous_x - 145.0, next_lane - 145.0))
+		var right := minf(WIDTH - 70.0, minf(previous_x + 145.0, next_lane + 145.0))
+		if platforms[-1].has("branch_x"):
+			left = maxf(left, float(platforms[-1].branch_x) - 145.0)
+			right = minf(right, float(platforms[-1].branch_x) + 145.0)
+		var side := left if lane >= CENTER else right
+		if left <= right and absf(side - lane) >= (width + 82.0) * 0.5 + 8.0:
+			plat.branch_x = side
+			plat.branch_y = plat.y
+			plat.branch_w = 82.0 - tier * 10.0
+			plat.branch_durability = 0
+			plat.branch_safe = true
 	return plat
 
 func _clear_platform_hazards(plat: Dictionary) -> void:
@@ -752,7 +816,7 @@ func secret_position(id: int) -> Vector2:
 	return Vector2(platform_x(step_index) + (-82 if (id + level) % 2 == 0 else 82), platforms[step_index].y - 105)
 
 func snapshot() -> Dictionary:
-	var data := {"version": 7, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
+	var data := {"version": 8, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
 	for p in players:
 		data.players.append({
 			"x": p.p.x, "y": p.p.y, "vx": p.v.x, "vy": p.v.y,
@@ -766,7 +830,7 @@ func snapshot() -> Dictionary:
 	return data
 
 static func restore(data: Dictionary):
-	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7] or not data.get("players") is Array or data.players.size() != 1:
+	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7, 8] or not data.get("players") is Array or data.players.size() != 1:
 		return null
 	var chapter := clampi(int(data.get("level", 0)), 0, Worlds.COUNT - 1)
 	var challenge := clampi(int(data.get("difficulty", 0)), 0, 2)
@@ -774,7 +838,7 @@ static func restore(data: Dictionary):
 	restored.elapsed = clampf(float(data.get("elapsed", 0)), 0, 86400)
 	var src: Dictionary = data.players[0]
 	var p: Dictionary = restored.players[0]
-	p.p = Vector2(clampf(float(src.get("x", 280)), 24, WIDTH - 24), clampf(float(src.get("y", START_Y)), float(restored.platforms[STEPS].y) - 180, START_Y + 160))
+	p.p = Vector2(clampf(float(src.get("x", CENTER)), 24, WIDTH - 24), clampf(float(src.get("y", START_Y)), float(restored.platforms[STEPS].y) - 180, START_Y + 160))
 	p.v = Vector2(clampf(float(src.get("vx", 0)), -SPEED, SPEED), clampf(float(src.get("vy", 0)), -JUMP * 1.58, 1400))
 	for key in ["checkpoint", "highest", "landed"]:
 		p[key] = clampi(int(src.get(key, 0)), 0, STEPS)
@@ -802,7 +866,13 @@ static func restore(data: Dictionary):
 	p.shield = clampf(float(src.get("shield", 0)), 0, 12)
 	p.magnet = clampf(float(src.get("magnet", 0)), 0, 8)
 	p.bubble = bool(src.get("bubble", false))
-	if int(data.get("version", 1)) < 7:
+	# Changed landing widths can leave an older airborne save without a floor.
+	# Resume those journeys safely at their checkpoint with progress preserved.
+	if int(data.get("version", 1)) < 8:
+		var retained_rescues: int = p.rescues
+		var retained_bubble: bool = p.bubble
 		restored.rescue(0)
+		p.rescues = retained_rescues
+		p.bubble = retained_bubble
 	p.invulnerable = 1.8
 	return restored

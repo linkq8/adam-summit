@@ -426,11 +426,11 @@ func build_ink_shapes(seed: int) -> void:
 	ink_shapes.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = maxi(1, seed)
-	var base_radius := sqrt(560.0 * view_height * 0.36 / (9.0 * PI))
+	var base_radius := sqrt(Model.WIDTH * view_height * 0.36 / (9.0 * PI))
 	for cell in range(9):
 		var column := cell % 3
 		var row := cell / 3
-		var center := Vector2((column + rng.randf_range(0.23, 0.77)) * 560.0 / 3.0, (row + rng.randf_range(0.22, 0.78)) * view_height / 3.0)
+		var center := Vector2((column + rng.randf_range(0.23, 0.77)) * Model.WIDTH / 3.0, (row + rng.randf_range(0.22, 0.78)) * view_height / 3.0)
 		var radius := base_radius * rng.randf_range(0.84, 1.13)
 		var points := PackedVector2Array()
 		var segments := 26 if not game.low_detail else 14

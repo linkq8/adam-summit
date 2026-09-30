@@ -37,7 +37,7 @@ func _initialize() -> void:
 	check(absf(race.players[0].p.y - (race.platforms[9].y - 3)) < 0.01, "Assisted rescue uses highest platform")
 	race = Model.new()
 	race.step(1.0 / 60, Vector2(1, -1))
-	check(race.players[0].p.x > 280 and race.players[1].p.x < 280, "Independent inputs control opposite players")
+	check(race.players[0].p.x > Model.CENTER and race.players[1].p.x < Model.CENTER, "Independent inputs control opposite players")
 	check(race.players[0].collected != null, "Collection state initialized")
 	race.players[0].collected[1] = true
 	check(not race.players[1].collected.has(1), "Collectibles independent per racer")

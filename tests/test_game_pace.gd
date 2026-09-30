@@ -8,7 +8,7 @@ func _initialize(): call_deferred("run")
 func run():
 	# The same simulation ticks must produce exactly the same trajectory, held
 	# effects and platform motion at every rate, including four-player races.
-	for chosen in range(3):
+	for chosen in range(Pace.RATES.size()):
 		var model = Model.new(false, 4, 4, 1)
 		var reference = Model.new(false, 4, 4, 1)
 		model.surprise_mode = true; reference.surprise_mode = true
@@ -41,7 +41,7 @@ func run():
 		check(endless.elapsed == lost_time and is_zero_approx(end_pace.pending), "Endless loss cannot keep consuming simulation ticks")
 	# Route checks sample every world and difficulty at slow/fast rates using
 	# actual per-frame autopilot input; the simulation remains untouched.
-	for chosen in [0, 2]:
+	for chosen in [0, 2, 3, 4]:
 		for chapter in [0, 4, 7, 10, 13]:
 			for difficulty in range(3):
 				var model = Model.new(difficulty == 0, 1, chapter, difficulty)
@@ -64,6 +64,13 @@ func run():
 	game.modal.get_node("GameSpeed2").pressed.emit()
 	check(game.game_speed == 2 and game.pace.selection == 0, "Changing the preference cannot change a running race")
 	check(root.gui_get_focus_owner().name == "GameSpeed2", "Focus stays on the chosen speed")
+	game.modal.get_node("GameSpeed4").pressed.emit()
+	check(game.game_speed == 4 and Pace.RATES[4] == 2.0 and game.pace.selection == 0, "200% is selectable without changing a paused race")
+	var previous_bottom := 0.0
+	for node in game.modal.get_children():
+		if node is Button and node.name.begins_with("GameSpeed"):
+			check(node.position.y >= previous_bottom and node.position.y + node.size.y <= game.menu_rect.end.y - 100, "All five TV speed choices fit and do not overlap")
+			previous_bottom = node.position.y + node.size.y
 	game.menu_back(); check(game.state == "settings", "Speed selector returns to settings")
 	game.speed_return = "mode_select"; game.show_speed_options(); game.menu_back()
 	check(game.state == "mode_select", "Speed selector returns to session setup when opened there")
@@ -75,6 +82,7 @@ func run():
 	check(game.pace.selection == 1, "Existing saves retain the original normal pace")
 	check(Pace.valid_selection(-1) == 1 and Pace.valid_selection(99) == 1, "Invalid saved settings fall back to normal")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(game.storage_path))
-	game.stop_audio(); game.queue_free(); await process_frame; await process_frame
+	game.stop_audio(); await create_timer(0.2).timeout
+	game.queue_free(); await process_frame; await process_frame
 	print("GAME_PACE_TESTS: ", "PASS" if failures == 0 else "FAIL")
 	quit(0 if failures == 0 else 1)

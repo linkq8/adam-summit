@@ -83,7 +83,7 @@ var held_keys: Dictionary = {}
 var touch_directions := Vector2.ZERO
 var touch_ids: Dictionary = {}
 var drag_id := -1
-var drag_target := 280.0
+var drag_target := Model.CENTER
 var countdown := 3.0
 var last_count := 4
 var ui: Control
@@ -260,8 +260,8 @@ func layout_ui() -> void:
 	var field_bottom := safe_bottom + (18 if tv else 12)
 	for i in range(4):
 		var phone_view := not tv
-		var w := canvas_size.x if phone_view else ((canvas_size.x - 32 * (player_count + 1)) / player_count if player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 0.76))
-		var x := 0.0 if phone_view else (32 + i * (w + 32) if player_count > 1 else (canvas_size.x - w) / 2)
+		var w := canvas_size.x if phone_view else ((canvas_size.x - 12 * (player_count + 1)) / player_count if player_count > 1 else minf(canvas_size.x - 24, (canvas_size.y - field_top - field_bottom) * 1.02))
+		var x := 0.0 if phone_view else (12 + i * (w + 12) if player_count > 1 else (canvas_size.x - w) / 2)
 		views[i].position = Vector2(x, field_top)
 		views[i].size = Vector2(w, maxf(240, canvas_size.y - field_top - field_bottom))
 		stages[i].scale = Vector2.ONE * w / Model.WIDTH * WORLD_ZOOM
@@ -1058,15 +1058,15 @@ func show_speed_options() -> void:
 	box(modal, r, MENU_CREAM)
 	label(modal, "سرعة اللعب", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
 	label(modal, "اختر إيقاع الحركة والقفز والعقبات", Rect2(r.position + Vector2(24, 94), Vector2(r.size.x - 48, 36)), 18)
-	var descriptions := ["وقت أكبر لاختيار الأرضية التالية", "الإيقاع المعتاد للمغامرة", "قفز وتنقّل أسرع لتحدٍّ أكبر"]
+	var descriptions := ["وقت أكبر لاختيار الأرضية التالية", "الإيقاع المعتاد للمغامرة", "قفز وتنقّل أسرع لتحدٍّ أكبر", "أسرع بنسبة ٥٠٪ من الإيقاع المعتاد", "ضعف السرعة • يحتاج تركيزًا أعلى"]
 	for chosen in range(GamePace.RATES.size()):
 		var text: String = GamePace.NAMES[chosen] + " • %d٪" % roundi(GamePace.RATES[chosen] * 100) + (" ✓" if game_speed == chosen else "")
-		var choice := button(modal, text, Rect2(r.position + Vector2(24, 152 + chosen * 114), Vector2(r.size.x - 48, 66)), func():
+		var choice := button(modal, text, Rect2(r.position + Vector2(24, 138 + chosen * 74), Vector2(r.size.x - 48, 50)), func():
 			game_speed = chosen; save_options(); show_speed_options(), game_speed == chosen)
 		choice.name = "GameSpeed%d" % chosen
 		choice.accessibility_name = text
 		choice.accessibility_description = descriptions[chosen]
-		label(modal, descriptions[chosen], Rect2(r.position + Vector2(24, 218 + chosen * 114), Vector2(r.size.x - 48, 32)), 17)
+		label(modal, descriptions[chosen], Rect2(r.position + Vector2(24, 188 + chosen * 74), Vector2(r.size.x - 48, 24)), 16)
 		if game_speed == chosen: choice.grab_focus()
 	label(modal, "تُطبّق عند بدء المرحلة • نفس السرعة للجميع\nارتفاع القفزة ثابت، والعدّ التنازلي لا يتغيّر", Rect2(r.position + Vector2(24, 514), Vector2(r.size.x - 48, 64)), 17)
 	button(modal, "رجوع", Rect2(r.position + Vector2(24, r.size.y - 84), Vector2(r.size.x - 48, 56)), return_from_speed_options)

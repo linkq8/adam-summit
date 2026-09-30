@@ -36,7 +36,8 @@ func route_finish_time(chapter: int, shortcut_route: bool) -> float:
 		var launched: bool = int(rider.launch_target) > rider.landed
 		var target: int = int(rider.launch_target) if launched else mini(Model.STEPS, rider.landed + 1)
 		var target_x: float = float(rider.launch_target_x) if launched else course.platform_x(target, course.elapsed + 0.2)
-		if shortcut_route and not launched and course.platforms[target].has("branch_x"):
+		var on_fork: bool = target in Model.FORK_STARTS or target - 1 in Model.FORK_STARTS or target - 2 in Model.FORK_STARTS
+		if shortcut_route and on_fork and not launched and course.platforms[target].has("branch_x"):
 			target_x = float(course.platforms[target].branch_x)
 		course.step(1.0 / 60, Vector2(clampf((target_x - rider.p.x) / 35.0, -1.0, 1.0), 0))
 		if rider.finish >= 0:
