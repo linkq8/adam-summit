@@ -1,5 +1,13 @@
 # Adam’s Summit design and implementation
 
+## v0.8.11 player selection before session setup
+
+The TV home has four entry choices: Single Player, Two Players, Settings and How to Play. Phone/tablet home has the same single-player, settings and help entries, preserving phone-only solo play. Selecting players opens a separate setup screen with Outfit, Stage and Play Mode, followed by Start and Back. TV multiplayer setup includes two/three/four-player selection without adding home entries. All selectors return to setup with their current choices intact; gamepad B, Escape and Android Back follow this hierarchy.
+
+Solo mode selects Adventure or Endless; multiplayer selects Race, Cooperation or Surprise Race. Difficulty is inside Play Mode. Endless stage selection is disabled with an explanation because the course is generated. Saved-adventure continuation appears only in solo adventure setup. How to Play opened from home returns home; onboarding opened by Start continues the configured game after confirmation. Existing course geometry, physics and control defaults remain unchanged.
+
+Menu-flow, UI, controller navigation, TV world progression and endless tests pass. Rendered local previews cover tall/small phones, a landscape tablet and TV setup for one, two and four players, including saved and endless setup states. No physical TV performance result is implied.
+
 ## v0.8.10 start screen and automatic control defaults
 
 The lobby uses the existing painted adventure world, Adam standing on a game platform, a strong gold start action, a world-island preview and separate Endless Climb action. Secondary wardrobe, difficulty, help and settings actions are smaller in hierarchy, with authored SVG navigation icons and explicit accessible button names. Phone/tablet safe areas and TV gamepad focus remain intact; no new background or character artwork is required. Decoration remains static in reduced-effects mode.

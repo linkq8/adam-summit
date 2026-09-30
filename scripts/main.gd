@@ -107,6 +107,9 @@ var menu_rect := Rect2()
 var layout_pending := false
 var layout_pixels := Vector2i.ZERO
 var settings_return := "lobby"
+var setup_active := false
+var solo_endless_selected := false
+var tutorial_starts_run := false
 var illustration: Sprite2D
 var help_time := 0.0
 var storage_path := "user://journey.json"
@@ -254,13 +257,15 @@ func layout_ui() -> void:
 		stages[i].scale = Vector2.ONE * w / Model.WIDTH * WORLD_ZOOM
 		stages[i].position.x = (w - Model.WIDTH * stages[i].scale.x) * 0.5
 		stages[i].view_height = views[i].size.y / stages[i].scale.y
-		views[i].visible = state not in ["lobby", "settings"] and i < player_count
+		views[i].visible = state in ["racing", "countdown", "paused", "finish"] and i < player_count
 	build_hud()
 	if state == "lobby": show_lobby()
+	elif state == "setup": show_play_setup()
+	elif state == "mode_select": show_play_modes()
 	elif state == "paused": show_pause()
 	elif state == "settings": show_settings()
 	elif state == "controls": show_control_settings()
-	elif state == "tutorial": show_tutorial()
+	elif state == "tutorial": show_tutorial(tutorial_starts_run)
 	elif state == "worlds": show_worlds()
 	elif state == "wardrobe": show_wardrobe()
 	elif state == "players": show_players()
@@ -360,8 +365,8 @@ func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, 
 	b.tooltip_text = text
 	b.accessibility_name = text
 	b.accessibility_description = detail
-	for kind in ["normal", "hover", "pressed"]:
-		var style: StyleBoxFlat = b.get_theme_stylebox(kind).duplicate()
+	for kind in ["normal", "hover", "pressed", "disabled"]:
+		var style: StyleBoxFlat = b.get_theme_stylebox("normal" if kind == "disabled" else kind).duplicate()
 		style.set_border_width_all(0)
 		style.set_corner_radius_all(18)
 		style.shadow_color = Color(0.02, 0.12, 0.12, 0.20)
@@ -377,6 +382,12 @@ func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, 
 	if has_detail:
 		label(b, detail, Rect2(16, 52 if primary else 47, rect.size.x - icon_size - 44, 26), 16, Color("365954"), HORIZONTAL_ALIGNMENT_RIGHT)
 	return b
+
+func disable_stage_choice(choice: Button, disabled: bool) -> void:
+	choice.disabled = disabled
+	if disabled:
+		choice.modulate = Color(0.78, 0.82, 0.81, 0.85)
+		choice.tooltip_text = "الصعود اللا نهائي يستخدم مسارًا متجددًا بدل المراحل"
 
 func menu_world(rect: Rect2) -> void:
 	var b := menu_action(Worlds.WORLDS[level / 3], "المرحلة %d–%d • اختر وجهتك" % [level / 3 + 1, level % 3 + 1], rect, show_worlds, 5)
@@ -398,7 +409,13 @@ func menu_landing(at: Vector2, width: float) -> void:
 	ground.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	modal.add_child(ground)
 
+func menu_title(text: String, rect: Rect2, font_size: int = 62) -> void:
+	var title := label(modal, text, rect, font_size, MENU_CREAM)
+	title.add_theme_color_override("font_outline_color", INK)
+	title.add_theme_constant_override("outline_size", 5)
+
 func show_lobby() -> void:
+	setup_active = false
 	if endless_mode:
 		endless_mode = false
 		player_count = endless_previous_players
@@ -406,36 +423,131 @@ func show_lobby() -> void:
 	if tv: show_tv_lobby(); return
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var content_h := 488.0 + (84.0 if not saved_game.is_empty() else 0.0)
-	var available := canvas_size.y - safe_top - safe_bottom
-	var hero_h := minf(420, available - content_h)
 	var width := minf(490, canvas_size.x - 40)
-	var r := Rect2((canvas_size.x - width) / 2, safe_top + maxf(0, (available - content_h - hero_h) / 2), width, content_h + hero_h)
-	var title := label(modal, "مغامرات آدم", Rect2(r.position + Vector2(0, -8), Vector2(width, 86)), 62, MENU_CREAM)
-	title.add_theme_color_override("font_outline_color", INK); title.add_theme_constant_override("outline_size", 6)
-	var subtitle := label(modal, "القمة التالية… تنتظرك", Rect2(r.position + Vector2(0, 72), Vector2(width, 32)), 20, MENU_CREAM)
-	subtitle.add_theme_color_override("font_outline_color", INK); subtitle.add_theme_constant_override("outline_size", 3)
-	var hero_size := minf(270, hero_h - 116)
-	var feet := r.position + Vector2(width / 2, hero_h - 14)
+	var available := canvas_size.y - safe_top - safe_bottom
+	var hero_h := minf(440, available - 278)
+	var x := (canvas_size.x - width) / 2
+	var top := safe_top + maxf(0, (available - hero_h - 278) / 2)
+	menu_title("مغامرات آدم", Rect2(x, top, width, 90))
+	var feet := Vector2(canvas_size.x / 2, top + hero_h - 14)
 	menu_landing(feet + Vector2(-112, -2), 224)
-	illustration = portrait(modal, costume, feet - Vector2(0, hero_size / 2), hero_size)
-	var y := r.position.y + hero_h + 18
-	menu_action("ابدأ المغامرة", "القفز تلقائي… وأنت تختار الطريق", Rect2(r.position.x, y, width, 80), begin_adventure, 0, true).grab_focus()
-	y += 96
-	menu_world(Rect2(r.position.x, y, width, 80))
-	y += 96
-	menu_action("صعود لا نهائي", "ارتفاع أعلى، تحدٍّ أكبر", Rect2(r.position.x, y, width, 76), start_endless, 1)
-	y += 92
-	var half := (width - 12) / 2
-	menu_action("ملابس آدم", "", Rect2(r.position.x + half + 12, y, half, 70), func(): show_wardrobe(true), 2)
-	menu_action(DIFFICULTIES[difficulty], "", Rect2(r.position.x, y, half, 70), func(): difficulty = (difficulty + 1) % 3; easy = difficulty == 0; save_options(); show_lobby(), 7)
-	y += 84
-	menu_action("الإعدادات", "", Rect2(r.position.x + half + 12, y, half, 70), func(): settings_return = "lobby"; show_settings(), 3)
-	menu_action("كيف ألعب؟", "", Rect2(r.position.x, y, half, 70), show_tutorial, 4)
-	if not saved_game.is_empty():
-		y += 84
-		menu_action("أكمل رحلتك المحفوظة", "", Rect2(r.position.x, y, width, 64), restore_journey, 8)
+	var height := minf(280, hero_h - 114)
+	illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
+	var y := top + hero_h + 18
+	menu_action("لاعب واحد", "اختر مغامرتك، ثم انطلق", Rect2(x, y, width, 86), func(): enter_play_setup(1), 0, true).grab_focus()
+	menu_action("الإعدادات", "", Rect2(x, y + 110, width, 70), func(): settings_return = "lobby"; show_settings(), 3)
+	menu_action("كيف ألعب؟", "", Rect2(x, y + 196, width, 70), show_tutorial, 4)
 	queue_redraw()
+
+func enter_play_setup(count: int) -> void:
+	player_count = clampi(count, 1, 4) if tv else 1
+	if remote_player >= player_count: remote_player = -1
+	if tv and mobile and player_count == 1:
+		var connected := Input.get_connected_joypads()
+		remote_player = 0 if connected.is_empty() else -1
+		if not connected.is_empty() and not slots[0] in connected: slots[0] = connected[0]
+	setup_active = true
+	state = "setup"
+	layout_ui()
+
+func return_to_play_menu() -> void:
+	if setup_active: show_play_setup()
+	else: show_lobby()
+
+func play_mode_name() -> String:
+	if player_count == 1: return "صعود لا نهائي" if solo_endless_selected else "مغامرة المراحل"
+	return "سباق المفاجآت" if surprise_mode else ("تعاون" if cooperative else "سباق القمّة")
+
+func setup_start() -> void:
+	if player_count == 1 and solo_endless_selected: start_endless()
+	else: begin_adventure()
+
+func setup_outfits() -> void:
+	if tv and player_count > 1: show_players()
+	else: show_wardrobe(true)
+
+func show_play_setup() -> void:
+	setup_active = true
+	state = "setup"; clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var heading := "مغامرة لاعب واحد" if player_count == 1 else "مغامرة لاعبين" if player_count == 2 else "مغامرة %d لاعبين" % player_count
+	var outfit_detail: String = Wardrobe.OUTFITS[costume] if player_count == 1 else "لبس وأداة تحكم لكل لاعب"
+	var stage_detail: String = "مسار متجدد تلقائيًا" if player_count == 1 and solo_endless_selected else Worlds.WORLDS[level / 3] + " • المرحلة %d–%d" % [level / 3 + 1, level % 3 + 1]
+	var mode_detail: String = play_mode_name() + " • " + DIFFICULTIES[difficulty]
+	if tv:
+		menu_title(heading, Rect2(65, 36, 640, 104), 65)
+		var subtitle := label(modal, "جهّز اللبس والمرحلة وطريقة اللعب", Rect2(68, 140, 630, 42), 24, MENU_CREAM)
+		subtitle.add_theme_color_override("font_outline_color", INK)
+		subtitle.add_theme_constant_override("outline_size", 4)
+		menu_landing(Vector2(110, 565), 535)
+		var spacing := 126.0 if player_count > 2 else 202.0
+		var height := 268.0 if player_count > 2 else 340.0
+		for i in range(player_count):
+			var feet := Vector2(376 - (player_count - 1) * spacing / 2 + i * spacing, 573)
+			portrait(modal, player_outfits[i] if player_count > 1 else costume, feet - Vector2(0, height / 2), height, 0, player_packs[i] if player_count > 1 else backpack)
+		var x := 774.0; var w := 410.0
+		menu_action("اللبس", outfit_detail, Rect2(x, 110, w, 82), setup_outfits, 2)
+		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, 210, w, 82), show_worlds, 5), player_count == 1 and solo_endless_selected)
+		menu_action("طريقة اللعب", mode_detail, Rect2(x, 310, w, 82), show_play_modes, 6)
+		if player_count > 1:
+			label(modal, "عدد اللاعبين", Rect2(92, 625, 160, 48), 21, MENU_CREAM)
+			for count in range(2, 5):
+				button(modal, str(count), Rect2(270 + (count - 2) * 80, 625, 66, 48), func(): enter_play_setup(count), player_count == count)
+		menu_action("ابدأ اللعب", "", Rect2(x, 428, w, 78), setup_start, 0, true).grab_focus()
+		var back := Rect2(x, 594, w, 56)
+		if player_count == 1 and not solo_endless_selected and not saved_game.is_empty():
+			menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, 522, w, 56), restore_journey, 8)
+		menu_action("رجوع", "", back, show_lobby, 8)
+	else:
+		var available := canvas_size.y - safe_top - safe_bottom
+		var width := minf(490, canvas_size.x - 40)
+		var has_save := not solo_endless_selected and not saved_game.is_empty()
+		var content_h := 492.0 + (78.0 if has_save else 0.0)
+		var hero_h := minf(360, available - content_h)
+		var x := (canvas_size.x - width) / 2
+		var top := safe_top + maxf(0, (available - hero_h - content_h) / 2)
+		menu_title(heading, Rect2(x, top - 4, width, 76), 46)
+		var feet := Vector2(canvas_size.x / 2, top + hero_h - 12)
+		menu_landing(feet + Vector2(-100, -2), 200)
+		var height := minf(220, hero_h - 82)
+		illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
+		var y := top + hero_h + 18
+		menu_action("اللبس", outfit_detail, Rect2(x, y, width, 80), setup_outfits, 2)
+		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, y + 96, width, 80), show_worlds, 5), solo_endless_selected)
+		menu_action("طريقة اللعب", mode_detail, Rect2(x, y + 192, width, 80), show_play_modes, 6)
+		menu_action("ابدأ اللعب", "", Rect2(x, y + 300, width, 76), setup_start, 0, true).grab_focus()
+		if has_save: menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, y + 392, width, 64), restore_journey, 8)
+		menu_action("رجوع", "", Rect2(x, y + 392 + (78 if has_save else 0), width, 64), show_lobby, 8)
+	queue_redraw()
+
+func choose_play_mode(id: int) -> void:
+	if player_count == 1:
+		solo_endless_selected = id == 1
+	else:
+		cooperative = id == 1
+		surprise_mode = id == 2
+		save_options()
+	show_play_setup()
+
+func show_play_modes() -> void:
+	state = "mode_select"; clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var r := menu_rect
+	box(modal, r, MENU_CREAM, Color.TRANSPARENT, 24)
+	label(modal, "طريقة اللعب", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 60)), 36)
+	var names := ["مغامرة المراحل", "صعود لا نهائي"] if player_count == 1 else ["سباق القمّة", "تعاون", "سباق المفاجآت"]
+	var descriptions := ["اصعد إلى نهاية المرحلة", "سقوط واحد ينهي المحاولة"] if player_count == 1 else ["الفائز أول من يصل إلى القمة", "تصلون إلى القمة معًا", "صناديق وأدوات بين المتسابقين"]
+	var selected := (1 if solo_endless_selected else 0) if player_count == 1 else (2 if surprise_mode else 1 if cooperative else 0)
+	for id in range(names.size()):
+		button(modal, names[id] + (" ✓" if selected == id else ""), Rect2(r.position + Vector2(24, 115 + id * 102), Vector2(r.size.x - 48, 62)), func(): choose_play_mode(id), selected == id)
+		label(modal, descriptions[id], Rect2(r.position + Vector2(24, 178 + id * 102), Vector2(r.size.x - 48, 30)), 17)
+	var y := 455.0
+	label(modal, "الصعوبة", Rect2(r.position + Vector2(24, y), Vector2(r.size.x - 48, 38)), 23)
+	var width := (r.size.x - 64) / 3
+	for id in range(3):
+		var choice := button(modal, DIFFICULTIES[id], Rect2(r.position + Vector2(24 + id * (width + 8), y + 52), Vector2(width, 64)), func(): difficulty = id; easy = id == 0; save_options(); show_play_modes(), difficulty == id)
+		choice.add_theme_font_size_override("font_size", 17)
+	button(modal, "رجوع إلى تجهيز اللعب", Rect2(r.position + Vector2(24, r.size.y - 88), Vector2(r.size.x - 48, 64)), show_play_setup).grab_focus()
 
 func controller_text(i: int) -> String:
 	return "يد %d متّصلة ✓" % (i + 1) if slots[i] in Input.get_connected_joypads() else "الزر السفلي للانضمام"
@@ -456,10 +568,10 @@ func begin_adventure() -> void:
 				clear_modal()
 				box(modal, menu_rect, Color("fff9e9"))
 				label(modal, "وصّل يد تحكم لكل لاعب\nثم الزر السفلي للانضمام", Rect2(menu_rect.position + Vector2(20, 120), Vector2(menu_rect.size.x - 40, 160)), 24)
-				button(modal, "رجوع", Rect2(menu_rect.position + Vector2(30, 330), Vector2(menu_rect.size.x - 60, 64)), show_lobby).grab_focus()
+				button(modal, "رجوع", Rect2(menu_rect.position + Vector2(30, 330), Vector2(menu_rect.size.x - 60, 64)), return_to_play_menu).grab_focus()
 				return
 	if not tutorial_seen and not demo:
-		show_tutorial()
+		show_tutorial(true)
 	else:
 		start_race()
 
@@ -472,11 +584,12 @@ func start_endless() -> void:
 	if tv and mobile and remote_player < 0 and not slots[0] in Input.get_connected_joypads():
 		remote_player = 0
 	if not tutorial_seen and not demo:
-		show_tutorial()
+		show_tutorial(true)
 	else:
 		start_race()
 
-func show_tutorial() -> void:
+func show_tutorial(for_start: bool = false) -> void:
+	tutorial_starts_run = for_start
 	state = "tutorial"
 	clear_modal()
 	hud.hide()
@@ -487,12 +600,24 @@ func show_tutorial() -> void:
 	illustration = portrait(modal, costume, r.position + Vector2(r.size.x / 2, 245), 220, 1)
 	label(modal, "←                    →", Rect2(r.position + Vector2(20, 295), Vector2(r.size.x - 40, 65)), 43, BLUE)
 	var tv_help := "القفز تلقائي\nحرّك العصا أو أسهم الريموت يمينًا ويسارًا\nالزر الأيمن للاستراحة\nاجمع النجوم وتابع إلى القمّة"
-	if surprise_mode:
+	if setup_active and player_count > 1 and surprise_mode:
 		tv_help = "القفز تلقائي\nحرّك العصا يمينًا ويسارًا\nافتح الصناديق واستعمل الأداة بالزر السفلي A\nالحبر يظهر كلطخات عشوائية على شاشة المنافس"
 	label(modal, ("صعود لا نهائي للاعب واحد\nتحرّك لتختار الأرضية التالية\nكلما ارتفعت، صغرت الأرضيات\nسقوط واحد ينهي المحاولة" if endless_mode else (tv_help if tv else ("القفز تلقائي\nأمِل الهاتف أو اسحب بإصبعك\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان" if tilt_enabled else "القفز تلقائي\nاسحب بإصبعك يمينًا ويسارًا\nاجمع النجوم… وابحث عن الزهور!\nنقطة: قفزة • نقطتان: قفزتان"))), Rect2(r.position + Vector2(15, 372), Vector2(r.size.x - 30, 130)), 22)
-	button(modal, "هيا نلعب!  ▶", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), func(): tutorial_seen = true; save_options(); start_race(), true).grab_focus()
+	button(modal, "هيا نلعب!" if tutorial_starts_run else "فهمت • رجوع", Rect2(r.position + Vector2(25, r.size.y - 90), Vector2(r.size.x - 50, 64)), finish_tutorial, true).grab_focus()
 	help_time = 0
 	play_sound("help")
+
+func finish_tutorial() -> void:
+	tutorial_seen = true
+	save_options()
+	if tutorial_starts_run: start_race()
+	else: return_to_play_menu()
+
+func menu_back() -> void:
+	if state in ["updates", "controls"]: show_settings()
+	elif state in ["worlds", "wardrobe", "players", "mode_select", "tutorial"]: return_to_play_menu()
+	elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
+	else: show_lobby()
 
 func build_hud() -> void:
 	for c in hud.get_children(): hud.remove_child(c); c.queue_free()
@@ -708,8 +833,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_B:
 		if state == "paused": resume_race()
 		elif state in ["racing", "countdown"]: pause_race()
-		elif state in ["updates", "controls"]: show_settings()
-		else: show_lobby()
+		else: menu_back()
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey: held_keys[event.physical_keycode if event.physical_keycode != 0 else event.keycode] = event.pressed
@@ -758,7 +882,8 @@ func _input(event: InputEvent) -> void:
 		if event.button_index == JOY_BUTTON_START:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
-			elif state == "lobby": begin_adventure()
+			elif state == "lobby": enter_play_setup(1)
+			elif state == "setup": setup_start()
 			get_viewport().set_input_as_handled()
 	if event is InputEventKey and event.pressed and not event.echo:
 		var pressed_key: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
@@ -770,8 +895,7 @@ func _input(event: InputEvent) -> void:
 		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
 			if state == "paused": resume_race()
 			elif state in ["racing", "countdown"]: pause_race()
-			elif state in ["updates", "controls"]: show_settings()
-			elif state in ["settings", "tutorial", "players", "worlds", "wardrobe", "finish"]: show_lobby()
+			else: menu_back()
 			get_viewport().set_input_as_handled()
 		elif event.physical_keycode == KEY_F3:
 			showing_perf = not showing_perf
@@ -781,6 +905,7 @@ func controller_changed(device: int, connected: bool) -> void:
 	if not connected and slots.slice(0, player_count).has(device) and state in ["racing", "countdown"]: pause_race()
 	if state == "lobby": show_lobby()
 	elif state == "paused": show_pause()
+	elif state == "setup": show_play_setup()
 
 func pause_race() -> void:
 	if not state in ["racing", "countdown"]: return
@@ -1044,9 +1169,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_IN and is_instance_valid(music): apply_audio()
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		if state in ["racing", "countdown"]: pause_race()
-		elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
-		elif state in ["updates", "controls"]: show_settings()
-		elif state != "lobby": show_lobby()
+		elif state != "lobby": menu_back()
 		else: get_tree().quit()
 
 func _process(dt: float) -> void:
@@ -1103,13 +1226,13 @@ func capture_lobby() -> void:
 	get_tree().quit()
 
 func _draw() -> void:
-	if state == "lobby":
+	if state in ["lobby", "setup"]:
 		var art := get_menu_art()
 		var ratio := maxf(canvas_size.x / art.get_width(), canvas_size.y / art.get_height())
 		var size := art.get_size() * ratio
 		draw_texture_rect(art, Rect2(Vector2(-(size.x - canvas_size.x) * (0.3 if not tv else 0.5), (canvas_size.y - size.y) / 2), size), false)
 		return
-	if state in ["players", "worlds", "wardrobe", "settings", "controls", "updates", "tutorial"]:
+	if state in ["players", "worlds", "wardrobe", "mode_select", "settings", "controls", "updates", "tutorial"]:
 		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("f5edda"))
 		draw_rect(Rect2(0, 0, canvas_size.x, 12), Color("cf7652"))
 		return
@@ -1153,11 +1276,11 @@ func show_worlds() -> void:
 		for chapter in range(3):
 			var id := world * 3 + chapter
 			var width := (content.custom_minimum_size.x - 135) / 3
-			var b := button(content, str(chapter + 1), Rect2(120 + chapter * (width + 3), y + 61, width - 3, 54), func(): level = id; show_lobby(), id == level)
+			var b := button(content, str(chapter + 1), Rect2(120 + chapter * (width + 3), y + 61, width - 3, 54), func(): level = id; return_to_play_menu(), id == level)
 			b.name = "Stage%d" % id
 			b.disabled = id > unlocked
 	scroll.set_deferred("scroll_vertical", (level / 3) * 150)
-	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 85), Vector2(r.size.x - 50, 58)), show_lobby).grab_focus()
+	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 85), Vector2(r.size.x - 50, 58)), return_to_play_menu).grab_focus()
 
 func select_music() -> void:
 	if not is_instance_valid(music): return
@@ -1199,9 +1322,9 @@ func show_wardrobe(reset: bool = false) -> void:
 	var wear := button(modal, "ارتدِ هذه الملابس ✓" if allowed else "اجمع نجومًا لفتح هذه المكافأة", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 58)), func():
 		if reward_stars() < Wardrobe.OUTFIT_COST[preview_outfit] or reward_stars() < Wardrobe.PACK_COST[preview_pack]: return
 		costume = preview_outfit; backpack = preview_pack
-		save_options(); show_lobby(), true)
+		save_options(); return_to_play_menu(), true)
 	wear.disabled = not allowed
-	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), show_lobby).grab_focus()
+	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), return_to_play_menu).grab_focus()
 
 func selection_surface(title: String, subtitle: String, next_state: String) -> void:
 	state = next_state
@@ -1216,29 +1339,14 @@ func selection_surface(title: String, subtitle: String, next_state: String) -> v
 func show_tv_lobby() -> void:
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var title := label(modal, "مغامرات آدم", Rect2(65, 43, 640, 124), 88, MENU_CREAM)
-	title.add_theme_color_override("font_outline_color", INK); title.add_theme_constant_override("outline_size", 5)
-	var subtitle := label(modal, "القمة التالية… تنتظرك", Rect2(82, 157, 606, 40), 26, MENU_CREAM)
-	subtitle.add_theme_color_override("font_outline_color", INK); subtitle.add_theme_constant_override("outline_size", 3)
-	menu_landing(Vector2(110, 567), 535)
-	var spacing := 126.0 if player_count > 2 else 202.0
-	var height := 268.0 if player_count > 2 else 340.0
-	for i in range(player_count):
-		var feet := Vector2(376 - (player_count - 1) * spacing / 2 + i * spacing, 575)
-		portrait(modal, player_outfits[i] if player_count > 1 else costume, feet - Vector2(0, height / 2), height, 0, player_packs[i] if player_count > 1 else backpack)
+	menu_title("مغامرات آدم", Rect2(65, 50, 640, 124), 88)
+	menu_landing(Vector2(220, 565), 315)
+	portrait(modal, costume, Vector2(376, 403), 340)
 	var x := 774.0; var w := 410.0
-	menu_action("ابدأ المغامرة", "اختر طريقك إلى القمة", Rect2(x, 80, w, 88), begin_adventure, 0, true).grab_focus()
-	menu_world(Rect2(x, 188, w, 82))
-	menu_action("رفاق المغامرة", "اللاعبون والملابس · %d" % player_count, Rect2(x, 288, w, 82), show_players, 6)
-	var half := (w - 14) / 2
-	menu_action(DIFFICULTIES[difficulty], "", Rect2(x, 389, half, 58), func(): difficulty = (difficulty + 1) % 3; save_options(); show_tv_lobby(), 7)
-	var mode_name := "سباق المفاجآت" if surprise_mode else ("تعاون" if cooperative else "سباق")
-	menu_action(mode_name, "", Rect2(x + half + 14, 389, half, 58), cycle_multiplayer_mode, 6)
-	menu_action("صعود لا نهائي", "ارتفاع أعلى، تحدٍّ أكبر", Rect2(x, 466, w, 78), start_endless, 1)
-	menu_action("الإعدادات", "", Rect2(x + half + 14, 564, half, 56), func(): settings_return = "lobby"; show_settings(), 3)
-	menu_action("كيف ألعب؟", "", Rect2(x, 564, half, 56), show_tutorial, 4)
-	var hint := label(modal, "اختر عالمك. جهّز رفيقك. وانطلق!", Rect2(90, 654, 580, 36), 26, MENU_CREAM)
-	hint.add_theme_color_override("font_outline_color", INK); hint.add_theme_constant_override("outline_size", 3)
+	menu_action("لاعب واحد", "مغامرتك نحو القمة", Rect2(x, 190, w, 88), func(): enter_play_setup(1), 0, true).grab_focus()
+	menu_action("لاعبان", "سباق أو تعاون", Rect2(x, 306, w, 88), func(): enter_play_setup(2), 6)
+	menu_action("الإعدادات", "", Rect2(x, 456, w, 64), func(): settings_return = "lobby"; show_settings(), 3)
+	menu_action("كيف ألعب؟", "", Rect2(x, 540, w, 64), show_tutorial, 4)
 	label(modal, "الأسهم للتنقّل • الزر السفلي للاختيار", Rect2(x, 644, w, 36), 18, MENU_CREAM)
 	queue_redraw()
 
@@ -1253,13 +1361,11 @@ func cycle_multiplayer_mode() -> void:
 		cooperative = true
 		surprise_mode = false
 	save_options()
-	show_tv_lobby()
+	show_play_setup()
 
 func show_players(focus_index: int = -1) -> void:
 	selection_surface("رفاق المغامرة", "لكل لاعب أسلوبه… اختاروا ملابسكم", "players")
-	label(modal, "عدد اللاعبين", Rect2(297, 175, 177, 42), 21)
-	for count in range(1, 5):
-		button(modal, "%d" % count, Rect2(490 + (count - 1) * 78, 174, 64, 43), func(): player_count = count; show_players(), player_count == count)
+	label(modal, "%d لاعبين • اللبس والتحكم" % player_count, Rect2(80, 175, 620, 42), 23)
 	var controls: Array[Button] = []
 	for i in range(player_count):
 		var width := minf(400, 1120.0 / player_count - 16)
@@ -1280,7 +1386,7 @@ func show_players(focus_index: int = -1) -> void:
 			remote_player = -1 if remote_player == i else i
 			save_options()
 			show_players(i * 3 + 2)))
-	var done := button(modal, "جاهزون… إلى العالم", Rect2(903, 174, 289, 43), show_worlds, true)
+	var done := button(modal, "تم اختيار الملابس", Rect2(903, 174, 289, 43), return_to_play_menu, true)
 	if focus_index >= 0 and focus_index < controls.size(): controls[focus_index].grab_focus()
 	else: done.grab_focus()
 
@@ -1308,11 +1414,11 @@ func show_tv_worlds() -> void:
 		box(modal, Rect2(x + 28, 570, 157, 3), Color("c7b080"), Color.TRANSPARENT, 0)
 		for chapter in range(3):
 			var id := world * 3 + chapter
-			var choice := button(modal, str(chapter + 1), Rect2(x + chapter * 75, 547, 60, 54), func(): level = id; show_lobby(), level == id)
+			var choice := button(modal, str(chapter + 1), Rect2(x + chapter * 75, 547, 60, 54), func(): level = id; return_to_play_menu(), level == id)
 			choice.name = "Stage%d" % id
 			choice.disabled = player_count == 1 and id > unlocked
 			if level == id: choice.grab_focus()
-	button(modal, "رجوع", Rect2(489, 619, 302, 43), show_lobby)
+	button(modal, "رجوع", Rect2(489, 619, 302, 43), return_to_play_menu)
 
 func show_updates() -> void:
 	state = "updates"; clear_modal(); hud.hide()
