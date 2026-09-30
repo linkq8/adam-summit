@@ -1,5 +1,11 @@
 # Adam’s Summit design and implementation
 
+## v0.8.14 lettering alignment inside illustrated signs
+
+Menu titles and their descriptions now form a centered stack on the pale writing surface, with equal reserved space on both sides and a separate icon lane on the right. Shared normalized content bounds distinguish wide wooden signs from compact selector tokens, keeping the lettering away from leaves and borders. Buttons with descriptions have more vertical space; setup spacing and reserved content height adapt accordingly on phone/tablet and TV. Dynamic descriptions shrink within a bounded range and retain their accessible descriptions.
+
+Regression checks use the actual drawn glyph bounds after layout to verify horizontal and vertical centering, description separation, containment within the writing surface and icon clearance, including saved-game continuation. Existing input pass-through, accessible names, controller and menu-flow checks remain. Two batched local render rounds cover phone, small phone, tablet and TV. No new artwork, per-frame image processing, gameplay physics or stage changes are introduced.
+
 ## v0.8.13 bespoke Arabic illustrated lettering
 
 The title is a generated ivory/gold adventure wordmark. Three transparent lettering atlases hold 48 reviewed Arabic phrases for home and setup choices, modes, difficulty, world names, wardrobe/settings headers, pause/help and finish headings. These use dark teal faces and thin ivory/gold edges matching the generated wooden signs. Small explanations, dynamic scores, stage numbers and status/configuration sentences remain live text for readability. The original Arabic text and accessible button names are preserved even where only the illustrated glyphs are drawn.

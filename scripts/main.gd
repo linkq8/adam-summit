@@ -323,14 +323,21 @@ func illustrated_style(texture: Texture2D, region: Rect2, tint: Color = Color.WH
 	style.set_content_margin_all(5)
 	return style
 
+# The leaves and wooden border are decoration, not the text's layout box.
+# These shared insets follow the pale writing surface of the generated assets.
+func sign_content(size: Vector2, compact: bool = false) -> Rect2:
+	return Rect2(size * Vector2(0.15, 0.24), size * Vector2(0.70, 0.52)) if compact else Rect2(size * Vector2(0.12, 0.24), size * Vector2(0.76, 0.58))
+
 func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary: bool = false) -> Button:
 	var b := AdventureButton.new()
 	b.text = text
 	b.position = rect.position
 	b.size = rect.size
 	b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var compact := rect.size.x / rect.size.y < 2.6
+	var content := sign_content(rect.size, compact)
 	var font_size := 21 if tv else 22
-	var text_width := rect.size.x - (56 if rect.size.x >= 180 else 22)
+	var text_width := content.size.x
 	var face := FONT
 	while font_size > 14 and face.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > text_width:
 		font_size -= 1
@@ -338,7 +345,6 @@ func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary
 	for key in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
 		b.add_theme_color_override(key, INK)
 	b.add_theme_color_override("font_disabled_color", Color("526f68"))
-	var compact := rect.size.x / rect.size.y < 2.6
 	var region := Rect2(20, 105, 2130, 475)
 	for kind in ["normal", "hover", "pressed", "disabled", "focus"]:
 		var texture: Texture2D = MENU_TOKEN if compact else SIGN_GOLD if primary or kind == "focus" else SIGN_IVORY
@@ -360,7 +366,7 @@ func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary
 	b.focus_entered.connect(b.queue_redraw)
 	b.focus_exited.connect(b.queue_redraw)
 	parent.add_child(b)
-	if Lettering.paint(b, text, Rect2(28, 0, rect.size.x - 56, rect.size.y), HORIZONTAL_ALIGNMENT_CENTER, minf(rect.size.y * 0.6, font_size * 1.5)):
+	if Lettering.paint(b, text, content, HORIZONTAL_ALIGNMENT_CENTER, minf(content.size.y, 36.0)):
 		b.accessibility_name = text
 	return b
 
@@ -400,12 +406,31 @@ func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, 
 	b.accessibility_name = text
 	b.accessibility_description = detail
 	var has_detail := not detail.is_empty()
-	var icon_size := 32.0 if rect.size.y >= 70 else 24.0
-	menu_icon(b, icon, Rect2(rect.size.x - icon_size - 50, (rect.size.y - icon_size) / 2, icon_size, icon_size))
-	var title_size := (28 if primary else 24) if rect.size.x > 260 else 20
-	label(b, text, Rect2(36, 17 if has_detail else 2, rect.size.x - icon_size - 94, 32 if has_detail else rect.size.y - 4), title_size, INK, HORIZONTAL_ALIGNMENT_RIGHT)
+	var content := sign_content(rect.size)
+	var icon_size := 28.0 if rect.size.y >= 70 else 24.0
+	menu_icon(b, icon, Rect2(content.end.x - icon_size, content.get_center().y - icon_size / 2, icon_size, icon_size))
+	b.get_child(0).name = "ActionIcon"
+	# Reserve equal space on both sides so the words center on the sign itself,
+	# while the icon has its own lane on the right.
+	var gutter := icon_size + 10.0
+	var text_rect := Rect2(content.position + Vector2(gutter, 0), content.size - Vector2(gutter * 2, 0))
+	var detail_height := 24.0 if has_detail else 0.0
+	var gap := 3.0 if has_detail else 0.0
+	var title_height := minf(34.0 if has_detail else 38.0, content.size.y - detail_height - gap)
+	var group_height := title_height + detail_height + gap
+	var y := content.get_center().y - group_height / 2
+	var title := label(b, text, Rect2(text_rect.position.x, y, text_rect.size.x, title_height), 24, INK)
+	title.name = "ActionTitle"
+	title.clip_text = true
 	if has_detail:
-		label(b, detail, Rect2(36, 50 if primary else 46, rect.size.x - icon_size - 94, 22), 14, Color("365954"), HORIZONTAL_ALIGNMENT_RIGHT)
+		var detail_size := 14
+		while detail_size > 12 and FONT.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1, detail_size).x > text_rect.size.x:
+			detail_size -= 1
+		var description := label(b, detail, Rect2(text_rect.position.x, y + title_height + gap, text_rect.size.x, detail_height), detail_size, Color("365954"))
+		description.name = "ActionDetail"
+		description.clip_text = true
+		description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	b.set_meta("sign_content", content)
 	return b
 
 func disable_stage_choice(choice: Button, disabled: bool) -> void:
@@ -417,9 +442,7 @@ func disable_stage_choice(choice: Button, disabled: bool) -> void:
 func menu_world(rect: Rect2) -> void:
 	var b := menu_action(Worlds.WORLDS[level / 3], "المرحلة %d–%d • اختر وجهتك" % [level / 3 + 1, level % 3 + 1], rect, show_worlds, 5)
 	# The actual world's illustration replaces the navigation icon.
-	b.get_child(0).hide()
-	b.get_child(1).size.x = rect.size.x - 116
-	b.get_child(2).size.x = rect.size.x - 116
+	b.get_node("ActionIcon").hide()
 	island(b, level / 3, Rect2(rect.size.x - 82, -9, 75, rect.size.y + 18))
 
 func menu_landing(at: Vector2, width: float) -> void:
@@ -460,9 +483,9 @@ func show_lobby() -> void:
 	var height := minf(280, hero_h - 114)
 	illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
 	var y := top + hero_h + 18
-	menu_action("لاعب واحد", "اختر مغامرتك، ثم انطلق", Rect2(x, y, width, 86), func(): enter_play_setup(1), 0, true).grab_focus()
-	menu_action("الإعدادات", "", Rect2(x, y + 110, width, 70), func(): settings_return = "lobby"; show_settings(), 3)
-	menu_action("كيف ألعب؟", "", Rect2(x, y + 196, width, 70), show_tutorial, 4)
+	menu_action("لاعب واحد", "اختر مغامرتك، ثم انطلق", Rect2(x, y, width, 104), func(): enter_play_setup(1), 0, true).grab_focus()
+	menu_action("الإعدادات", "", Rect2(x, y + 118, width, 70), func(): settings_return = "lobby"; show_settings(), 3)
+	menu_action("كيف ألعب؟", "", Rect2(x, y + 204, width, 70), show_tutorial, 4)
 	queue_redraw()
 
 func enter_play_setup(count: int) -> void:
@@ -512,23 +535,23 @@ func show_play_setup() -> void:
 			var feet := Vector2(376 - (player_count - 1) * spacing / 2 + i * spacing, 573)
 			portrait(modal, player_outfits[i] if player_count > 1 else costume, feet - Vector2(0, height / 2), height, 0, player_packs[i] if player_count > 1 else backpack)
 		var x := 774.0; var w := 410.0
-		menu_action("اللبس", outfit_detail, Rect2(x, 110, w, 82), setup_outfits, 2)
-		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, 210, w, 82), show_worlds, 5), player_count == 1 and solo_endless_selected)
-		menu_action("طريقة اللعب", mode_detail, Rect2(x, 310, w, 82), show_play_modes, 6)
+		menu_action("اللبس", outfit_detail, Rect2(x, 110, w, 100), setup_outfits, 2)
+		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, 222, w, 100), show_worlds, 5), player_count == 1 and solo_endless_selected)
+		menu_action("طريقة اللعب", mode_detail, Rect2(x, 334, w, 100), show_play_modes, 6)
 		if player_count > 1:
 			label(modal, "عدد اللاعبين", Rect2(92, 625, 160, 48), 21, MENU_CREAM)
 			for count in range(2, 5):
 				button(modal, str(count), Rect2(270 + (count - 2) * 80, 625, 66, 48), func(): enter_play_setup(count), player_count == count)
-		menu_action("ابدأ اللعب", "", Rect2(x, 428, w, 78), setup_start, 0, true).grab_focus()
-		var back := Rect2(x, 594, w, 56)
+		menu_action("ابدأ اللعب", "", Rect2(x, 456, w, 78), setup_start, 0, true).grab_focus()
+		var back := Rect2(x, 626, w, 56)
 		if player_count == 1 and not solo_endless_selected and not saved_game.is_empty():
-			menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, 522, w, 56), restore_journey, 8)
+			menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, 552, w, 56), restore_journey, 8)
 		menu_action("رجوع", "", back, show_lobby, 8)
 	else:
 		var available := canvas_size.y - safe_top - safe_bottom
 		var width := minf(490, canvas_size.x - 40)
 		var has_save := not solo_endless_selected and not saved_game.is_empty()
-		var content_h := 492.0 + (78.0 if has_save else 0.0)
+		var content_h := 544.0 + (78.0 if has_save else 0.0)
 		var hero_h := minf(360, available - content_h)
 		var x := (canvas_size.x - width) / 2
 		var top := safe_top + maxf(0, (available - hero_h - content_h) / 2)
@@ -538,12 +561,12 @@ func show_play_setup() -> void:
 		var height := minf(220, hero_h - 82)
 		illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
 		var y := top + hero_h + 18
-		menu_action("اللبس", outfit_detail, Rect2(x, y, width, 80), setup_outfits, 2)
-		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, y + 96, width, 80), show_worlds, 5), solo_endless_selected)
-		menu_action("طريقة اللعب", mode_detail, Rect2(x, y + 192, width, 80), show_play_modes, 6)
-		menu_action("ابدأ اللعب", "", Rect2(x, y + 300, width, 76), setup_start, 0, true).grab_focus()
-		if has_save: menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, y + 392, width, 64), restore_journey, 8)
-		menu_action("رجوع", "", Rect2(x, y + 392 + (78 if has_save else 0), width, 64), show_lobby, 8)
+		menu_action("اللبس", outfit_detail, Rect2(x, y, width, 96), setup_outfits, 2)
+		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, y + 112, width, 96), show_worlds, 5), solo_endless_selected)
+		menu_action("طريقة اللعب", mode_detail, Rect2(x, y + 224, width, 96), show_play_modes, 6)
+		menu_action("ابدأ اللعب", "", Rect2(x, y + 344, width, 84), setup_start, 0, true).grab_focus()
+		if has_save: menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, y + 444, width, 64), restore_journey, 8)
+		menu_action("رجوع", "", Rect2(x, y + 444 + (78 if has_save else 0), width, 64), show_lobby, 8)
 	queue_redraw()
 
 func choose_play_mode(id: int) -> void:
@@ -1369,8 +1392,8 @@ func show_tv_lobby() -> void:
 	menu_landing(Vector2(220, 565), 315)
 	portrait(modal, costume, Vector2(376, 403), 340)
 	var x := 774.0; var w := 410.0
-	menu_action("لاعب واحد", "مغامرتك نحو القمة", Rect2(x, 190, w, 88), func(): enter_play_setup(1), 0, true).grab_focus()
-	menu_action("لاعبان", "سباق أو تعاون", Rect2(x, 306, w, 88), func(): enter_play_setup(2), 6)
+	menu_action("لاعب واحد", "مغامرتك نحو القمة", Rect2(x, 190, w, 104), func(): enter_play_setup(1), 0, true).grab_focus()
+	menu_action("لاعبان", "سباق أو تعاون", Rect2(x, 306, w, 104), func(): enter_play_setup(2), 6)
 	menu_action("الإعدادات", "", Rect2(x, 456, w, 64), func(): settings_return = "lobby"; show_settings(), 3)
 	menu_action("كيف ألعب؟", "", Rect2(x, 540, w, 64), show_tutorial, 4)
 	label(modal, "الأسهم للتنقّل • الزر السفلي للاختيار", Rect2(x, 644, w, 36), 18, MENU_CREAM)
