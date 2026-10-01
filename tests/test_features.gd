@@ -28,13 +28,13 @@ func _initialize() -> void:
 	p = m.players[0]
 	var fork: int = Model.FORK_STARTS[0]
 	p.highest = fork
-	p.p = Vector2(m.platforms[fork].branch_x, m.platforms[fork].y - 1)
+	p.p = Vector2(m.platforms[fork].branch_x, m.platforms[fork].get("branch_y", m.platforms[fork].y) - 1)
 	p.v = Vector2(0, 120)
 	p.camera = p.p.y - 345
 	m.step(1.0 / 60, Vector2.ZERO)
 	check(p.branch_hits.has(fork) and p.v.y < 0 and m.platform_exists(0, fork), "Branch collapses after launching, main route remains")
 	check(not m.players[1].branch_hits.has(fork), "Branch damage is independent")
-	p.p = Vector2(m.platforms[fork + 1].branch_x, m.platforms[fork + 1].y - 12)
+	p.p = Vector2(m.platforms[fork + 1].branch_x, m.platforms[fork + 1].get("branch_y", m.platforms[fork + 1].y) - 12)
 	p.v = Vector2.ZERO
 	var stars: int = p.stars
 	m.step(1.0 / 60, Vector2.ZERO)

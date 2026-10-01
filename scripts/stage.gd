@@ -62,7 +62,7 @@ func _ready() -> void:
 	hero.z_index = 2
 	Wardrobe.style(hero, 0, 0)
 	Wardrobe.pose(hero, 0)
-	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, 138)
+	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, game.model.actor_height if game != null and game.model != null else 138.0)
 	add_child(hero)
 	screen_fx = Node2D.new()
 	screen_fx.z_index = 4
@@ -84,7 +84,7 @@ func _process(dt: float) -> void:
 		var branch_y: float = float(plat.get("branch_y", plat.y)) - camera
 		branches[i].visible = branch_y > -90 and branch_y < view_height + 90 and game.model.branch_exists(index, i)
 		if branches[i].visible: branches[i].position = Vector2(plat.branch_x, branch_y) + branch_offsets[i]
-	var frame := Wardrobe.jump_frame(p.v.y, p.squash)
+	var frame := Wardrobe.jump_frame(p.v.y * Model.JUMP / game.model.jump_speed, p.squash)
 	if game.state in ["countdown", "paused"]: frame = 0
 	if game.state == "finish": frame = Wardrobe.VICTORY_FRAME
 	var row: int = game.player_outfits[index] if game.player_count > 1 else game.costume
@@ -99,7 +99,7 @@ func _process(dt: float) -> void:
 	hero.visible = p.invisible <= 0 or p.landing_flash > 0
 	Wardrobe.face(hero, p.face)
 	var squash: float = 0 if game.low_detail else p.squash
-	var size := Wardrobe.scale_for(hero, 138)
+	var size := Wardrobe.scale_for(hero, game.model.actor_height)
 	hero.scale = hero.scale.lerp(Vector2(size * (1 + squash * 0.09), size * (1 - squash * 0.1)), 1.0 if game.low_detail else minf(1, dt * 22))
 	hero.rotation = 0 if game.low_detail else lerpf(hero.rotation, clampf(p.v.x / 310.0, -1, 1) * 0.06, minf(1, dt * 10))
 	hero.modulate.a = 0.7 if p.invulnerable > 0 else 1.0
@@ -161,8 +161,8 @@ func predicted_landing(player: Dictionary) -> Vector2:
 		return Vector2.INF
 	var best_time := INF
 	var best := Vector2.INF
-	var first: int = maxi(0, int(player.highest) - 1)
-	var last: int = mini(game.model.platforms.size(), int(player.highest) + 6)
+	var first: int = maxi(0, int(player.highest) - 6)
+	var last: int = mini(game.model.platforms.size(), int(player.highest) + 8)
 	for i in range(first, last):
 		var plat: Dictionary = game.model.platforms[i]
 		var surfaces: Array[Dictionary] = []
@@ -175,12 +175,12 @@ func predicted_landing(player: Dictionary) -> Vector2:
 			if fall < 24.0 or fall > 330.0:
 				continue
 			var velocity_y: float = float(player.v.y)
-			var flight: float = (-velocity_y + sqrt(velocity_y * velocity_y + 2.0 * Model.GRAVITY * fall)) / Model.GRAVITY
+			var flight: float = (-velocity_y + sqrt(velocity_y * velocity_y + 2.0 * game.model.gravity * fall)) / game.model.gravity
 			if flight <= 0.0 or flight >= best_time:
 				continue
 			var projected_x: float = clampf(float(player.p.x) + float(player.v.x) * flight, 16.0, Model.WIDTH - 16.0)
 			var surface_x: float = game.model.platform_x(int(surface.i), game.model.elapsed + flight) if bool(surface.moving) else float(surface.x)
-			if absf(projected_x - surface_x) <= float(surface.w) * 0.5 + 13.0:
+			if absf(projected_x - surface_x) <= float(surface.w) * 0.5 + game.model.landing_half_width:
 				best_time = flight
 				best = Vector2(projected_x, float(surface.y))
 	return best
@@ -515,12 +515,15 @@ func draw_finish(at: Vector2) -> void:
 func camera_for(p: Dictionary, shown_position: Vector2 = Vector2.INF, shown_camera: float = INF) -> float:
 	# The simulation camera only moves upward. Following it directly can clip
 	# a still-reachable landing during descent, before the rescue threshold.
-	# Reserve 280 world units below the feet: a full jump (~168 with a
-	# spring), platform artwork, and breathing room. This presentation-only
-	# lower bound follows descent continuously without changing fall rules.
+	# Reserve room below the feet for a reachable landing and its artwork.
+	# The taller first-stage jump needs additional space. This presentation
+	# bound follows descent continuously without changing fall rules.
 	var position: Vector2 = p.p if shown_position == Vector2.INF else shown_position
 	var climb_camera: float = (p.camera if shown_camera == INF else shown_camera) - maxf(0, view_height - 600) * 0.65
-	return maxf(climb_camera, position.y + 280.0 - view_height)
+	var reserve := 280.0
+	if game != null and game.model != null and game.model.level == 0 and not game.model.endless:
+		reserve = 400.0
+	return maxf(climb_camera, position.y + reserve - view_height)
 
 func configure_terrain() -> void:
 	configured_model = game.model

@@ -1,5 +1,7 @@
 extends SceneTree
 const Stage = preload("res://scripts/stage.gd")
+class TrialGame extends Node:
+	var model = preload("res://scripts/race_model.gd").new(false, 1, 0, 1)
 var failures := 0
 func _initialize(): call_deferred("run")
 func check(ok: bool, message: String):
@@ -24,6 +26,15 @@ func run():
 	var floor_y := -620.0
 	check(floor_y - falling.camera > stage.view_height, "Fixture reproduces previous clipping")
 	check(floor_y - stage.camera_for(falling) < stage.view_height - 100, "Landing now fully visible")
+	var trial := TrialGame.new(); stage.game = trial
+	for height in [540.0, 600.0, 737.0, 1100.0, 1800.0]:
+		stage.view_height = height
+		for feet in range(-1000, -350, 5):
+			var p := {"p": Vector2(340, feet), "camera": -1345.0}
+			var camera: float = stage.camera_for(p)
+			check(feet - camera >= trial.model.actor_height + 20.0, "Smaller trial hero remains fully visible in short TV panes")
+			check(feet + 300.0 - camera <= height - 99.0, "Taller trial jump leaves a visible landing and artwork margin")
+	trial.free(); stage.game = null
 	stage.free()
 	print("CAMERA_TESTS: ", "PASS" if failures == 0 else "FAIL")
 	quit(1 if failures else 0)
