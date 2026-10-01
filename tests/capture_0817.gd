@@ -15,7 +15,7 @@ func run():
 	game.pace.reset(game.model, 1)
 	game.hud_time = 0.1; game._physics_process(0.0)
 	await snap("0817-phone-course.png")
-	
+
 	root.size = Vector2i(1920, 1080)
 	game.tv = true; game.player_count = 2; game.start_race(); game.state = "racing"; game.clear_modal(); game.layout_ui()
 	for racer in game.model.players:
