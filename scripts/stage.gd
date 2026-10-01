@@ -76,6 +76,9 @@ func _process(dt: float) -> void:
 	if configured_model != game.model or configured_base != game.model.endless_base: configure_terrain()
 	var camera := camera_for(p, game.visual_position(index), game.visual_camera(index))
 	for i in range(terrain.size()):
+		if i >= game.model.platforms.size():
+			terrain[i].visible = false; branches[i].visible = false
+			continue
 		var plat: Dictionary = game.model.platforms[i]
 		var y: float = plat.y - camera
 		var on_screen := y > -90 and y < view_height + 90
@@ -252,10 +255,10 @@ func _draw() -> void:
 			draw_line(Vector2(x - 13, y + 23), Vector2(x + 13, y + 23), Color("ffdf90"), 2)
 			draw_line(Vector2(x - 13, y + 23), Vector2(x - 8, y + 19), Color("ffdf90"), 2)
 			draw_line(Vector2(x + 13, y + 23), Vector2(x + 8, y + 19), Color("ffdf90"), 2)
-		if plat.checkpoint and i > 0 and i < Model.STEPS:
+		if plat.checkpoint and i > 0 and i < model.course_steps:
 			draw_line(Vector2(x - w * 0.36, y), Vector2(x - w * 0.36, y - 40), Color("78573b"), 3)
 			draw_colored_polygon(PackedVector2Array([Vector2(x - w * 0.36, y - 40), Vector2(x - w * 0.36 + 24, y - 34), Vector2(x - w * 0.36, y - 24)]), Color("f6ca5d"))
-		if not model.endless and i > 0 and i < Model.STEPS and not player.collected.has(i):
+		if not model.endless and i > 0 and i < model.course_steps and not player.collected.has(i):
 			star(Vector2(x, y - 55 + sin(time * 2.5 + i) * 4), 13)
 		if plat.enemy:
 			draw_creature(Vector2(model.enemy_x(i), y), model.world)
@@ -267,7 +270,7 @@ func _draw() -> void:
 			draw_arc(orb, 15, 0, TAU, 32, tint.lightened(0.3), 2, true)
 			draw_arc(orb + Vector2(-2, -2), 9, PI, PI * 1.45, 12, Color("fffbea"), 3, true)
 			for dx in [-4, 4]: draw_circle(orb + Vector2(dx, 2), 1.8, Color("396368"))
-		if i == Model.STEPS and not model.endless:
+		if i == model.course_steps and not model.endless:
 			draw_finish(Vector2(x, y))
 		if plat.has("branch_x"):
 			var bx: float = plat.branch_x
@@ -526,11 +529,20 @@ func camera_for(p: Dictionary, shown_position: Vector2 = Vector2.INF, shown_came
 	return maxf(climb_camera, position.y + reserve - view_height)
 
 func configure_terrain() -> void:
+	# Grow the reusable sprite pool for longer chapters; shorter chapters hide
+	# the spare nodes and reuse the same pool on the next stage.
+	while terrain.size() < game.model.platforms.size():
+		var tile := Sprite2D.new(); tile.centered = false
+		tile.material = terrain[0].material
+		add_child(tile); terrain.append(tile)
+		var branch := Sprite2D.new(); branch.centered = false
+		branch.material = tile.material
+		add_child(branch); branches.append(branch)
 	configured_model = game.model
 	configured_base = game.model.endless_base
 	ink_cache_seed = -1
 	offsets.clear(); branch_offsets.clear()
-	for i in range(terrain.size()):
+	for i in range(game.model.platforms.size()):
 		var plat: Dictionary = game.model.platforms[i]
 		var tile: Sprite2D = terrain[i]
 		tile.modulate = Color("e998d0") if bool(plat.get("drop_on_contact", false)) else (Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)))

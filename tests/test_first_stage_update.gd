@@ -67,7 +67,7 @@ func _initialize() -> void:
 			fallback.players[0].platform_hits[platform] = 1
 		for tick in range(10800):
 			var rider: Dictionary = fallback.players[0]
-			var target: int = mini(Model.STEPS, int(rider.landed) + 1)
+			var target: int = mini(fallback.course_steps, int(rider.landed) + 1)
 			var target_x: float = fallback.platform_x(target, fallback.elapsed + 0.2)
 			if fallback.branch_exists(0, target):
 				target_x = float(fallback.platforms[target].branch_x)

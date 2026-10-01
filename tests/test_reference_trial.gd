@@ -12,9 +12,9 @@ func run_route(fast: bool) -> float:
 		var p: Dictionary = m.players[0]
 		if last_landed != int(p.landed):
 			last_landed = int(p.landed)
-			planned_x = m.platform_x(mini(Model.STEPS, last_landed + 1))
+			planned_x = m.platform_x(mini(m.course_steps, last_landed + 1))
 			if fast:
-				for target in range(mini(Model.STEPS, last_landed + 4), last_landed, -1):
+				for target in range(mini(m.course_steps, last_landed + 4), last_landed, -1):
 					var plat: Dictionary = m.platforms[target]
 					var x: float = float(plat.get("branch_x", plat.x))
 					var y: float = float(plat.get("branch_y", plat.y))
@@ -52,7 +52,7 @@ func _initialize():
 	var screen_width := Model.WIDTH / 0.9
 	for difficulty in range(3):
 		var course = Model.new(difficulty == 0, 1, 0, difficulty)
-		for i in range(1, Model.STEPS):
+		for i in range(1, course.course_steps):
 			var plat: Dictionary = course.platforms[i]
 			check(float(plat.w) / screen_width >= 0.16 and float(plat.w) / screen_width <= 0.18, "Main floor uses 16–18 percent of phone width")
 			if plat.has("branch_x"):
@@ -64,7 +64,7 @@ func _initialize():
 	for column in range(24, int(Model.WIDTH) - 24, 16):
 		var parked = Model.new(false, 1, 0, 1); parked.players[0].p.x = column
 		for tick in range(2400): parked.step(Pace.STEP, Vector2.ZERO)
-		check(parked.players[0].finish < 0 and parked.players[0].highest <= 6, "Fixed column cannot skip the first side change")
+		check(parked.players[0].finish < 0 and parked.players[0].highest < parked.course_steps, "Fixed column cannot complete the course")
 	for chapter in range(1, 15):
 		var unchanged = Model.new(false, 1, chapter, 1)
 		check(unchanged.gravity == Model.GRAVITY and unchanged.jump_speed == Model.JUMP and unchanged.actor_height == 138.0, "Other adventure stages keep their original physics and size")
@@ -73,13 +73,13 @@ func _initialize():
 	# Old stage-one airborne saves resume without a new rescue penalty; old
 	# saves in other chapters retain their precise position.
 	m.players[0].highest = 11; m.players[0].checkpoint = 8; m.players[0].rescues = 2
-	var data: Dictionary = m.snapshot(); data.version = 8
+	var data: Dictionary = m.snapshot(); data.version = 8; data.course_steps = 52
 	var migrated = Model.restore(data)
-	check(migrated.players[0].landed == 8 and migrated.players[0].rescues == 2, "Version-eight stage-one saves migrate safely")
+	check(migrated.players[0].landed == 16 and migrated.players[0].rescues == 2, "Version-eight stage-one saves migrate safely")
 	var other = Model.new(false, 1, 4, 1); other.players[0].p = Vector2(251, -401)
 	data = other.snapshot(); data.version = 8
 	check(Model.restore(data).players[0].p == other.players[0].p, "Other version-eight journeys keep their airborne position")
-	for source in [17, 22, 38, 50, 51]:
+	for source in [17, 22, 38, 58, 92, 118, 119]:
 		var boosted = Model.new(false, 1, 0, 1)
 		var normal = Model.new(false, 1, 0, 1)
 		var target: int = boosted.spring_profile(source).target

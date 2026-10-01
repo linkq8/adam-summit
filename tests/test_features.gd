@@ -66,7 +66,7 @@ func _initialize() -> void:
 			var route = Model.new(difficulty == 0, 1, chapter, difficulty)
 			for tick in range(10800):
 				var rider: Dictionary = route.players[0]
-				var target: int = mini(Model.STEPS, rider.landed + 1)
+				var target: int = mini(route.course_steps, rider.landed + 1)
 				var dx: float = route.platforms[target].get("branch_x", route.platform_x(target, route.elapsed + 0.2)) - rider.p.x
 				route.step(1.0 / 60, Vector2(clampf(dx / 35, -1, 1), 0))
 				if rider.finish >= 0: break

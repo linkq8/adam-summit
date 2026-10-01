@@ -51,6 +51,8 @@ var endless_base := 0
 var endless_score := 0
 var ended := false
 # Trial tuning is restricted to the first adventure chapter.
+const FIRST_STAGE_STEPS := 120
+var course_steps := STEPS
 var gravity := GRAVITY
 var jump_speed := JUMP
 var actor_height := 138.0
@@ -64,6 +66,7 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 	world = level / 3
 	difficulty = (0 if assisted else 1) if challenge < 0 else clampi(challenge, 0, 2)
 	if level == 0 and not endless:
+		course_steps = FIRST_STAGE_STEPS
 		gravity = 2400.0
 		jump_speed = 1200.0
 		actor_height *= 0.8
@@ -312,41 +315,70 @@ func _clear_platform_hazards(plat: Dictionary) -> void:
 	plat.orb = false
 
 func _configure_first_stage() -> void:
-	# Six-row side bands are taller than a normal jump. A stationary player
-	# cannot skip the opposite band; inward landings bridge each transition.
-	var gaps := [56.0, 72.0, 60.0, 80.0, 64.0, 76.0, 58.0, 82.0]
-	var outer := [535.0, 550.0, 530.0, 545.0, 530.0, 450.0]
-	var inner := [410.0, 420.0, 400.0, 420.0, 400.0, 320.0]
-	var lifts := [14.0, 28.0, 18.0, 36.0, 24.0, 20.0]
+	# Seeded, bounded placements form a field of landings, rather than two
+	# repeated lanes. The same geometry is shared by every racer/difficulty.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 81820261001
+	var xs: Array[float] = [CENTER, 500.0, 220.0, 510.0, 180.0]
+	var direction_run := 0
+	var previous_direction := 0
+	for i in range(5, course_steps + 1):
+		var candidates: Array[float] = []
+		for lane in [105.0, 180.0, 255.0, 330.0, 405.0, 480.0, 565.0]:
+			var x: float = lane + rng.randf_range(-18.0, 18.0)
+			var delta: float = x - xs[-1]
+			if absf(delta) < 70.0 or absf(delta) > 260.0: continue
+			if direction_run >= 2 and int(signf(delta)) == previous_direction: continue
+			candidates.append(x)
+		var chosen: float = candidates[rng.randi_range(0, candidates.size() - 1)]
+		var direction := int(signf(chosen - xs[-1]))
+		direction_run = direction_run + 1 if direction == previous_direction else 1
+		previous_direction = direction
+		xs.append(chosen)
 	var height := START_Y
-	for i in range(STEPS + 1):
-		if i > 0: height -= float(gaps[(i - 1) % gaps.size()])
-		var lane := maxi(0, i - 1) % 6
-		var right := (maxi(0, i - 1) / 6) % 2 == 0
-		var x: float = float(outer[lane]) if right else WIDTH - float(outer[lane])
-		var plat := {"x": x, "y": height, "w": float([136.0, 132.0, 128.0][difficulty]) * float([1.0, 0.99, 0.96][i % 3]),
-			"durability": 0, "moving": false, "checkpoint": i > 0 and i % 8 == 0,
-			"spring": i in [22, 38], "mud": i in FIRST_STAGE_MUD,
-			"sticky": false, "orb": i == 39, "enemy": i == 19}
-		if i == 0 or i == STEPS:
+	for i in range(course_steps + 1):
+		if i > 0:
+			height -= float([64, 78, 70, 80][i - 1]) if i <= 4 else float(rng.randi_range(28, 41) * 2)
+		var checkpoint := i > 0 and i < course_steps and i % 8 == 0
+		var fragile := i < course_steps and (i in FIRST_STAGE_FRAGILE or (i > STEPS and i % 13 == 3 and not checkpoint))
+		var muddy := i in FIRST_STAGE_MUD or i in [63, 87, 109]
+		var plat := {"x": xs[i], "y": height, "w": float([136.0, 132.0, 128.0][difficulty]) * float([1.0, 0.99, 0.96][i % 3]),
+			"durability": 0, "moving": false, "checkpoint": checkpoint,
+			"spring": i in [22, 38, 58, 92], "mud": muddy,
+			"sticky": false, "orb": i in [39, 83], "enemy": i in [19, 67, 101]}
+		if i == 0 or i == course_steps:
 			plat.x = CENTER
 			plat.w = 400.0 if i == 0 else 250.0
-		elif i >= 3:
-			plat.branch_x = float(inner[lane]) if right else WIDTH - float(inner[lane])
-			plat.branch_y = height - float(lifts[lane])
-			plat.branch_w = [88.0, 82.0, 76.0][difficulty]
-			plat.branch_durability = 1 if i in FIRST_STAGE_EXTRA_ROUTES or i in FORK_STARTS else 0
-			plat.branch_safe = plat.branch_durability == 0
-			plat.branch_fragile = plat.branch_durability == 1
-			# Raised choices are available throughout, without promising every
-			# individual choice is always quicker than a well-planned main jump.
-			plat.shortcut = i in FIRST_STAGE_EXTRA_ROUTES
-		if i in [5, 17, 31, 44]: plat.durability = 2
-		if i in FIRST_STAGE_FRAGILE:
+		elif i >= 5 and (fragile or muddy or i in FIRST_STAGE_EXTRA_ROUTES or i in FORK_STARTS or i - 1 in FORK_STARTS or i - 2 in FORK_STARTS or rng.randf() < 0.48):
+			var previous_x: float = xs[i - 1]
+			var next_x: float = CENTER if i + 1 == course_steps else xs[i + 1]
+			var previous_branch: float = float(platforms[-1].get("branch_x", previous_x))
+			var low := maxf(65.0, maxf(previous_x - 270.0, maxf(next_x - 270.0, previous_branch - 270.0)))
+			var high := minf(WIDTH - 65.0, minf(previous_x + 270.0, minf(next_x + 270.0, previous_branch + 270.0)))
+			var options: Array[float] = []
+			for side in [-1.0, 1.0]:
+				var bx := clampf(xs[i] + side * rng.randf_range(126.0, 165.0), low, high)
+				if low <= high and absf(bx - xs[i]) >= 116.0: options.append(bx)
+			if not options.is_empty():
+				plat.branch_x = options[rng.randi_range(0, options.size() - 1)]
+				plat.branch_y = height - float(rng.randi_range(7, 17) * 2)
+				plat.branch_w = [88.0, 82.0, 76.0][difficulty]
+				plat.branch_durability = 1 if i in FIRST_STAGE_EXTRA_ROUTES or i in FORK_STARTS else 0
+				plat.branch_safe = plat.branch_durability == 0
+				plat.branch_fragile = plat.branch_durability == 1
+				plat.shortcut = i in FIRST_STAGE_EXTRA_ROUTES
+		# A hazard is authored only where a distinct reachable bypass fits.
+		if not plat.has("branch_x"):
+			fragile = false
+			plat.mud = false
+		if (i in [5, 17, 31, 44] or i > STEPS and i % 17 == 5) and not checkpoint:
+			_clear_platform_hazards(plat)
+			plat.durability = 2
+		if fragile:
 			_clear_platform_hazards(plat)
 			plat.durability = 1
 			plat.instant_break = true
-			plat.drop_on_contact = i in FIRST_STAGE_DROP
+			plat.drop_on_contact = i in FIRST_STAGE_DROP or i > STEPS and i % 2 == 1
 			plat.branch_durability = 0
 			plat.branch_safe = true
 			plat.branch_fragile = false
@@ -501,7 +533,7 @@ func _tick_effects(p: Dictionary, dt: float) -> void:
 
 func _hold_on_platform(index: int, dt: float, events: Array[Dictionary]) -> void:
 	var p: Dictionary = players[index]
-	var platform_id: int = clampi(int(p.hold_platform), 0, STEPS)
+	var platform_id: int = clampi(int(p.hold_platform), 0, course_steps)
 	p.hold = maxf(0.0, p.hold - dt)
 	p.p.y = platforms[platform_id].y
 	p.p.x = clampf(p.p.x, platform_x(platform_id) - platforms[platform_id].w * 0.5, platform_x(platform_id) + platforms[platform_id].w * 0.5)
@@ -565,7 +597,7 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 					friend.checkpoint = maxi(friend.checkpoint, j)
 					friend.shield = maxf(friend.shield, 5)
 			events.append({"kind": "checkpoint", "player": index})
-		if j == STEPS and not endless:
+		if j == course_steps and not endless:
 			p.finish = elapsed - dt + fraction * dt
 			p.v = Vector2.ZERO
 			events.append({"kind": "finish", "player": index})
@@ -613,12 +645,12 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 
 func _collect_stage_objects(index: int, events: Array[Dictionary]) -> void:
 	var p: Dictionary = players[index]
-	for j in range(maxi(1, p.highest - 3), mini(STEPS + 1, p.highest + 3)):
+	for j in range(maxi(1, p.highest - 3), mini(course_steps + 1, p.highest + 3)):
 		var plat: Dictionary = platforms[j]
 		if not platform_exists(index, j):
 			continue
 		var star_pos := Vector2(platform_x(j), plat.y - 55)
-		if j < STEPS and not p.collected.has(j) and (p.p - Vector2(0, 36)).distance_to(star_pos) < (145 if p.magnet > 0 else 42):
+		if j < course_steps and not p.collected.has(j) and (p.p - Vector2(0, 36)).distance_to(star_pos) < (145 if p.magnet > 0 else 42):
 			p.collected[j] = true
 			p.stars += 1
 			events.append({"kind": "star", "player": index, "position": star_pos})
@@ -631,7 +663,7 @@ func _collect_stage_objects(index: int, events: Array[Dictionary]) -> void:
 			if (p.p - Vector2(0, 34)).distance_to(orb_position(j)) < 34:
 				var blocked := bump(p)
 				events.append({"kind": "shield_block" if blocked else "bump", "player": index})
-	for j in range(maxi(1, p.highest - 3), mini(STEPS, p.highest + 4)):
+	for j in range(maxi(1, p.highest - 3), mini(course_steps, p.highest + 4)):
 		var plat: Dictionary = platforms[j]
 		if plat.has("branch_x") and not p.branch_collected.has(j):
 			var bonus := Vector2(plat.branch_x, float(plat.get("branch_y", plat.y)) - 48)
@@ -684,11 +716,11 @@ func orb_position(i: int) -> Vector2:
 	return Vector2(platform_x(i) + sin(elapsed * (0.85 if easy else 1.15) + i) * 92, platforms[i].y - 68)
 
 func power_position(power: int) -> Vector2:
-	var j: int = POWER_STEPS[power]
+	var j: int = [12, 58, 96][power] if level == 0 and not endless else POWER_STEPS[power]
 	return Vector2(platform_x(j) + 42, platforms[j].y - 78)
 
 func box_position(box_id: int) -> Vector2:
-	var j: int = BOX_STEPS[box_id]
+	var j: int = [19, 43, 73, 101][box_id] if level == 0 and not endless else BOX_STEPS[box_id]
 	return Vector2(platform_x(j) - 46, platforms[j].y - 72)
 
 func grant_power(index: int, power: int) -> void:
@@ -796,7 +828,7 @@ func rescue(index: int) -> void:
 	for j in p.branch_hits.keys():
 		if int(j) >= saved:
 			p.branch_hits.erase(j)
-	for i in range(saved, STEPS + 1):
+	for i in range(saved, course_steps + 1):
 		p.platform_hits[i] = 0
 	p.highest = saved
 	p.landed = saved
@@ -816,12 +848,12 @@ func rescue(index: int) -> void:
 	p.rescues += 1
 
 func progress(index: int) -> float:
-	return clampf(float(players[index].highest) / STEPS, 0, 1)
+	return clampf(float(players[index].highest) / course_steps, 0, 1)
 
 func autopilot(index: int) -> float:
 	var p: Dictionary = players[index]
 	var target: int = int(p.launch_target) if int(p.launch_target) > p.landed else mini(platforms.size() - 1, p.landed + 1)
-	if p.p.y > platforms[target].y + 145:
+	if p.v.y >= 0 and p.p.y > platforms[target].y + 145:
 		target = p.checkpoint
 	var target_x: float = float(p.launch_target_x) if target == int(p.launch_target) else platform_x(target, elapsed + 0.2)
 	if bool(platforms[target].get("drop_on_contact", false)) and branch_exists(index, target):
@@ -830,11 +862,11 @@ func autopilot(index: int) -> float:
 	return clampf(dx / 35.0, -1.0, 1.0)
 
 func secret_position(id: int) -> Vector2:
-	var step_index: int = SECRET_STEPS[id]
+	var step_index: int = [22, 62, 103][id] if level == 0 and not endless else SECRET_STEPS[id]
 	return Vector2(platform_x(step_index) + (-82 if (id + level) % 2 == 0 else 82), platforms[step_index].y - 105)
 
 func snapshot() -> Dictionary:
-	var data := {"version": 9, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
+	var data := {"version": 10, "course_steps": course_steps, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
 	for p in players:
 		data.players.append({
 			"x": p.p.x, "y": p.p.y, "vx": p.v.x, "vy": p.v.y,
@@ -848,7 +880,7 @@ func snapshot() -> Dictionary:
 	return data
 
 static func restore(data: Dictionary):
-	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7, 8, 9] or not data.get("players") is Array or data.players.size() != 1:
+	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] or not data.get("players") is Array or data.players.size() != 1:
 		return null
 	var chapter := clampi(int(data.get("level", 0)), 0, Worlds.COUNT - 1)
 	var challenge := clampi(int(data.get("difficulty", 0)), 0, 2)
@@ -856,16 +888,16 @@ static func restore(data: Dictionary):
 	restored.elapsed = clampf(float(data.get("elapsed", 0)), 0, 86400)
 	var src: Dictionary = data.players[0]
 	var p: Dictionary = restored.players[0]
-	p.p = Vector2(clampf(float(src.get("x", CENTER)), 24, WIDTH - 24), clampf(float(src.get("y", START_Y)), float(restored.platforms[STEPS].y) - 180, START_Y + 160))
+	p.p = Vector2(clampf(float(src.get("x", CENTER)), 24, WIDTH - 24), clampf(float(src.get("y", START_Y)), float(restored.platforms[restored.course_steps].y) - 180, START_Y + 160))
 	p.v = Vector2(clampf(float(src.get("vx", 0)), -SPEED, SPEED), clampf(float(src.get("vy", 0)), -restored.jump_speed * 1.58, 1400))
 	for key in ["checkpoint", "highest", "landed"]:
-		p[key] = clampi(int(src.get(key, 0)), 0, STEPS)
+		p[key] = clampi(int(src.get(key, 0)), 0, restored.course_steps)
 	p.checkpoint = mini(p.checkpoint, p.highest)
-	p.camera = clampf(float(src.get("camera", 0)), float(restored.platforms[STEPS].y) - 500, 0)
+	p.camera = clampf(float(src.get("camera", 0)), float(restored.platforms[restored.course_steps].y) - 500, 0)
 	p.rescues = maxi(0, int(src.get("rescues", 0)))
 	p.face = -1.0 if float(src.get("face", 1)) < 0 else 1.0
 	for id in src.get("collected", []):
-		if int(id) > 0 and int(id) < STEPS:
+		if int(id) > 0 and int(id) < restored.course_steps:
 			p.collected[int(id)] = true
 	p.stars = p.collected.size()
 	for id in src.get("secrets", []):
@@ -873,12 +905,12 @@ static func restore(data: Dictionary):
 			p.secrets[int(id)] = true
 	var hits = src.get("platform_hits", [])
 	if hits is Array:
-		for i in range(mini(hits.size(), STEPS + 1)):
+		for i in range(mini(hits.size(), restored.course_steps + 1)):
 			p.platform_hits[i] = clampi(int(hits[i]), 0, int(restored.platforms[i].durability))
 	for key in ["branch_hits", "branch_collected", "powers_taken"]:
 		for raw in src.get(key, []):
 			var id := int(raw)
-			if (key == "powers_taken" and id >= 0 and id < 3) or (key != "powers_taken" and id >= 0 and id <= STEPS and restored.platforms[id].has("branch_x")):
+			if (key == "powers_taken" and id >= 0 and id < 3) or (key != "powers_taken" and id >= 0 and id <= restored.course_steps and restored.platforms[id].has("branch_x")):
 				p[key][id] = true
 	p.stars += p.branch_collected.size() * 3
 	p.shield = clampf(float(src.get("shield", 0)), 0, 12)
@@ -886,7 +918,20 @@ static func restore(data: Dictionary):
 	p.bubble = bool(src.get("bubble", false))
 	# Changed landing widths can leave an older airborne save without a floor.
 	# Resume those journeys safely at their checkpoint with progress preserved.
-	if int(data.get("version", 1)) < 8 or (chapter == 0 and int(data.get("version", 1)) < 9):
+	if int(data.get("version", 1)) < 8 or (chapter == 0 and int(data.get("version", 1)) < 10):
+		if chapter == 0:
+			var previous_steps := maxi(1, int(data.get("course_steps", STEPS)))
+			var ratio := float(restored.course_steps) / previous_steps
+			p.highest = mini(restored.course_steps - 1, roundi(p.highest * ratio))
+			p.checkpoint = mini(p.highest, (int(p.checkpoint * ratio) / 8) * 8)
+			p.platform_hits.fill(0); p.branch_hits.clear()
+			# Reward counts survive the migration, including side-route stars.
+			for key in ["collected", "branch_collected"]:
+				var mapped := {}
+				for id in src.get(key, []):
+					mapped[clampi(roundi(int(id) * ratio), 1, restored.course_steps - 1)] = true
+				p[key] = mapped
+			p.stars = p.collected.size() + p.branch_collected.size() * 3
 		var retained_rescues: int = p.rescues
 		var retained_bubble: bool = p.bubble
 		restored.rescue(0)
