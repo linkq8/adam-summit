@@ -52,6 +52,7 @@ var guide_label: Label
 var guide_panel: Panel
 var easy := true
 var low_detail := false
+var render_budget = preload("res://scripts/render_budget.gd").new()
 var tv_native_resolution := false
 var tv_balanced_resolution := true
 var player_outfits := [0, 1, 2, 3]
@@ -207,9 +208,25 @@ func _ready() -> void:
 		capture_lobby.call_deferred()
 
 # Keep gameplay coordinates fixed, but rasterize at the physical display resolution.
+func multiplayer_rendering() -> bool:
+	return tv and player_count > 1 and state in ["countdown", "racing", "paused", "finish"]
+
 func apply_render_quality() -> void:
-	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if tv and not tv_native_resolution else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
-	scale = Vector2.ONE * (1.5 if tv and not tv_native_resolution and tv_balanced_resolution else 1.0)
+	var multiplayer := multiplayer_rendering()
+	var fixed := tv and (multiplayer or not tv_native_resolution)
+	get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_VIEWPORT if fixed else Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	if multiplayer:
+		# Even a saved native-4K preference respects the multiplayer 60 FPS budget.
+		render_budget.configure(1.5 if tv_native_resolution or tv_balanced_resolution else 1.0)
+		scale = Vector2.ONE * render_budget.render_scale()
+	else:
+		scale = Vector2.ONE * (1.5 if tv and not tv_native_resolution and tv_balanced_resolution else 1.0)
+
+func update_render_budget(dt: float) -> void:
+	if render_budget.sample(dt, multiplayer_rendering() and state == "racing"):
+		apply_render_quality()
+		# No UI rebuild or allocations during a race; logical bounds stay identical.
+		get_window().content_scale_size = Vector2i(canvas_size * scale.x)
 
 func advance_adventure() -> void:
 	if state != "finish": return
@@ -715,7 +732,10 @@ func build_hud() -> void:
 	pause_btn.focus_mode = Control.FOCUS_NONE
 	clock_label = label(hud, "", Rect2(canvas_size.x / 2 - 40, safe_top + 64, 80, 30), 16)
 	clock_label.visible = tv and player_count > 1
-	perf_label = label(hud, "", Rect2(5, safe_top + 70, canvas_size.x - 10, 30), 12)
+	perf_label = label(hud, "", Rect2(5, canvas_size.y - safe_bottom - 18 if tv else safe_top + 70, canvas_size.x - 10, 18 if tv else 30), 12, Color("fff8dd") if tv else INK)
+	if tv:
+		perf_label.add_theme_color_override("font_outline_color", INK)
+		perf_label.add_theme_constant_override("outline_size", 2)
 	perf_label.visible = showing_perf
 	if not tv:
 		var has_touch_action := mobile and surprise_mode and player_count > 1
@@ -963,8 +983,7 @@ func _input(event: InputEvent) -> void:
 			else: menu_back()
 			get_viewport().set_input_as_handled()
 		elif event.physical_keycode == KEY_F3:
-			showing_perf = not showing_perf
-			perf_label.visible = showing_perf
+			toggle_performance()
 
 func controller_changed(device: int, connected: bool) -> void:
 	if not connected and slots.slice(0, player_count).has(device) and state in ["racing", "countdown"]: pause_race()
@@ -1006,6 +1025,12 @@ func resume_race() -> void:
 	if tilt_enabled: recenter_tilt()
 	if state == "countdown": build_countdown()
 
+func toggle_performance() -> void:
+	showing_perf = not showing_perf
+	frame_times.clear(); perf_time = 0.0
+	if is_instance_valid(perf_label): perf_label.visible = showing_perf
+	save_options()
+
 func show_settings() -> void:
 	state = "settings"
 	clear_modal()
@@ -1031,11 +1056,16 @@ func show_settings() -> void:
 			apply_audio(); save_options())
 	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 286), Vector2(r.size.x - 40, 54)), func(): low_detail = not low_detail; save_options(); show_settings())
 	if tv:
-		button(modal, "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p")), Rect2(r.position + Vector2(20, 350), Vector2(r.size.x - 40, 48)), func():
-			if tv_native_resolution: tv_native_resolution = false; tv_balanced_resolution = false
+		var quality_text := "جودة اللعب: تلقائية • حتى " + ("1080p" if tv_native_resolution or tv_balanced_resolution else "720p") if player_count > 1 else "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p"))
+		button(modal, quality_text, Rect2(r.position + Vector2(20, 350), Vector2(r.size.x - 40, 48)), func():
+			if player_count > 1:
+				var was_balanced := tv_native_resolution or tv_balanced_resolution
+				tv_native_resolution = false; tv_balanced_resolution = not was_balanced
+			elif tv_native_resolution: tv_native_resolution = false; tv_balanced_resolution = false
 			elif tv_balanced_resolution: tv_native_resolution = true
 			else: tv_balanced_resolution = true
 			apply_render_quality(); save_options(); layout_ui())
+
 	if not tv:
 		var control_y := 350.0
 		var control_w := (r.size.x - 50) * 0.5
@@ -1045,6 +1075,8 @@ func show_settings() -> void:
 			label(modal, "جاهز تلقائيًا • خيارات إضافية بالداخل", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 32)), 17)
 
 	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position + Vector2(20, 408 if tv else 452), Vector2(r.size.x - 40, 54)), func(): speed_return = "settings"; show_speed_options())
+	if tv:
+		button(modal, "عرض FPS: " + ("مفعّل" if showing_perf else "مغلق"), Rect2(r.position + Vector2(20, 466), Vector2(r.size.x - 40, 48)), func(): toggle_performance(); show_settings()).name = "PerformanceToggle"
 	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
 	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
@@ -1192,6 +1224,7 @@ func load_options() -> void:
 	surprise_mode = bool(data.get("surprise_mode", false))
 	if surprise_mode: cooperative = false
 	unlocked = clampi(int(data.get("unlocked", 0)), 0, Worlds.COUNT - 1)
+	showing_perf = bool(data.get("showing_perf", false))
 	low_detail = bool(data.get("low_detail", false))
 	tv_native_resolution = bool(data.get("tv_native_resolution", false))
 	tv_balanced_resolution = bool(data.get("tv_balanced_resolution", true))
@@ -1215,7 +1248,7 @@ func load_options() -> void:
 
 func save_options() -> void:
 	if demo: return
-	var data := {"version": 3, "controls_version": 1, "game_speed": game_speed, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tilt_sensitivity": tilt_sensitivity, "drag_sensitivity": drag_sensitivity, "tilt_inverted": tilt_inverted, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
+	var data := {"version": 3, "controls_version": 1, "game_speed": game_speed, "difficulty": difficulty, "costume": costume, "backpack": backpack, "cooperative": cooperative, "surprise_mode": surprise_mode, "endless_best": endless_best, "unlocked": unlocked, "showing_perf": showing_perf, "low_detail": low_detail, "tv_native_resolution": tv_native_resolution, "tv_balanced_resolution": tv_balanced_resolution, "player_outfits": player_outfits, "player_packs": player_packs, "remote_player": remote_player, "music": music_volume, "effects": effects_volume, "haptics": haptics, "tilt_enabled": tilt_enabled, "tilt_sensitivity": tilt_sensitivity, "drag_sensitivity": drag_sensitivity, "tilt_inverted": tilt_inverted, "tutorial": tutorial_seen, "saved": saved_game, "records": records}
 	var file := FileAccess.open(storage_path + ".tmp", FileAccess.WRITE)
 	if file:
 		file.store_string(JSON.stringify(data))
@@ -1267,6 +1300,7 @@ func _notification(what: int) -> void:
 		else: get_tree().quit()
 
 func _process(dt: float) -> void:
+	update_render_budget(dt)
 	menu_axis_time = maxf(0, menu_axis_time - dt)
 	if state not in ["racing", "countdown"] and menu_axis_time <= 0:
 		for device in Input.get_connected_joypads():
@@ -1294,7 +1328,7 @@ func _process(dt: float) -> void:
 		perf_time = 0.0
 		var sorted := frame_times.duplicate()
 		sorted.sort()
-		perf_label.text = "%d FPS • p95 %.1f ms • %.0f MB" % [Engine.get_frames_per_second(), sorted[int((sorted.size() - 1) * 0.95)], OS.get_static_memory_usage() / 1048576.0]
+		perf_label.text = "%d FPS • p95 %.1f ms • %.0f MB%s" % [Engine.get_frames_per_second(), sorted[int((sorted.size() - 1) * 0.95)], OS.get_static_memory_usage() / 1048576.0, " • %dp" % roundi(720 * scale.x) if multiplayer_rendering() else ""]
 	if smoke and not saved_capture and model.elapsed > 7:
 		saved_capture = true
 		capture("gameplay-tv.png" if tv else "gameplay-phone.png")

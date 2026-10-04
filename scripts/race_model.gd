@@ -553,13 +553,17 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 	var p: Dictionary = players[index]
 	for j in range(platforms.size() - 1, -1, -1):
 		var plat: Dictionary = platforms[j]
+		var branch_y: float = float(plat.get("branch_y", plat.y))
+		var branch_crossed: bool = plat.has("branch_x") and previous.y <= branch_y + 0.01 and p.p.y >= branch_y
 		var main_crossed: bool = previous.y <= plat.y + 0.01 and p.p.y >= plat.y
+		# Broad phase: only compute horizontal contact and moving-platform math
+		# for surfaces crossed by this exact physics tick. Keep descending row
+		# order, continuous collision fractions, and drop-through behavior intact.
+		if not main_crossed and not branch_crossed: continue
 		var main_fraction := clampf((plat.y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if main_crossed else 2.0
 		var main_x := lerpf(previous.x, p.p.x, main_fraction) if main_crossed else -999.0
 		var platform_contact := platform_x(j, elapsed - dt + main_fraction * dt) if main_crossed else platform_x(j)
 		var on_main: bool = main_crossed and platform_exists(index, j) and absf(main_x - platform_contact) <= plat.w * 0.5 + landing_half_width
-		var branch_y: float = float(plat.get("branch_y", plat.y))
-		var branch_crossed: bool = plat.has("branch_x") and previous.y <= branch_y + 0.01 and p.p.y >= branch_y
 		var branch_fraction := clampf((branch_y - previous.y) / maxf(0.001, p.p.y - previous.y), 0, 1) if branch_crossed else 2.0
 		var branch_x := lerpf(previous.x, p.p.x, branch_fraction) if branch_crossed else -999.0
 		var on_branch: bool = not on_main and branch_crossed and branch_exists(index, j) and absf(branch_x - float(plat.branch_x)) <= float(plat.branch_w) * 0.5 + landing_half_width
@@ -603,7 +607,7 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 			events.append({"kind": "finish", "player": index})
 			return
 		var spring_launch: bool = on_main and plat.spring
-		var jump_profile := spring_profile(j, landing_y, p.p.x)
+		var jump_profile := spring_profile(j, landing_y, p.p.x) if spring_launch or p.boost_jumps > 0 else {}
 		var jump_scale := float(jump_profile.scale) if spring_launch else 1.0
 		var jump_target := int(jump_profile.target) if spring_launch else -1
 		var jump_target_x := float(jump_profile.target_x) if spring_launch else platform_contact
