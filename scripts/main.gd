@@ -823,7 +823,7 @@ func _physics_process(dt: float) -> void:
 			var hint_window: bool = model.elapsed < 8.0 or fmod(model.elapsed, 18.0) < 4.0
 			guide_label.visible = abilities != "" or hint_window
 			if is_instance_valid(guide_panel): guide_panel.visible = guide_label.visible
-			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if level == 0 and int(model.elapsed / 18.0) % 2 == 1 else ("أمِل الهاتف أو اسحب • الأسهم الذهبية: طريق أسرع" if tilt_enabled and mobile else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")))
+			guide_label.text = "سقوط واحد ينهي المحاولة • ارتفاعك هو نقاطك" if model.endless else (abilities if abilities != "" else ("بنفسجي: سقوط مباشر • أخضر: بديل آمن" if not model.endless and int(model.elapsed / 18.0) % 2 == 1 else ("أمِل الهاتف أو اسحب • الأسهم الذهبية: طريق أسرع" if tilt_enabled and mobile else "اسحب للتحرّك • الأسهم الذهبية: طريق أسرع")))
 		var seconds := int(model.elapsed / pace.rate())
 		clock_label.text = "%02d:%02d" % [seconds / 60, seconds % 60]
 

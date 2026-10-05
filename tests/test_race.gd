@@ -89,20 +89,20 @@ func _initialize() -> void:
 		var calm = Model.new(true, 1, chapter, 0)
 		var advanced = Model.new(false, 1, chapter, 2)
 		var has_wider_landing := false
-		for i in range(1, Model.STEPS):
+		for i in range(1, calm.course_steps):
 			if calm.platforms[i].w > advanced.platforms[i].w:
 				has_wider_landing = true
 				break
 		check(has_wider_landing, "Calm preserves wider landings")
 		for i in range(1, 7):
 			check(not calm.platforms[i].orb and not calm.platforms[i].enemy, "Calm opening safe")
-		for i in range(1, Model.STEPS + 1):
-			if advanced.platforms[i].checkpoint or i == Model.STEPS:
+		for i in range(1, advanced.course_steps + 1):
+			if advanced.platforms[i].checkpoint or i == advanced.course_steps:
 				check(not advanced.platforms[i].orb and not advanced.platforms[i].enemy, "Checkpoint and summit free of obstacles")
 	var fragile = Model.new(false, 2, 0, 1)
 	var fragile_platforms := []
 	for wanted_capacity in [1, 2]:
-		for candidate in range(1, Model.STEPS):
+		for candidate in range(1, fragile.course_steps):
 			if fragile.platforms[candidate].durability == wanted_capacity:
 				fragile_platforms.append(candidate)
 				break
@@ -129,12 +129,12 @@ func _initialize() -> void:
 		for chapter in range(15):
 			var course = Model.new(challenge == 0, 1, chapter, challenge)
 			var widths := {}
-			for i in range(1, Model.STEPS):
+			for i in range(1, course.course_steps):
 				widths[course.platforms[i].w] = true
 				if course.platforms[i].checkpoint:
 					check(course.platforms[i].durability == 0, "Checkpoints cannot break")
 			check(widths.size() >= 3, "Every stage has visibly distinct widths")
-			check(course.platforms[0].durability == 0 and course.platforms[Model.STEPS].durability == 0, "Start and finish cannot break")
+			check(course.platforms[0].durability == 0 and course.platforms[course.course_steps].durability == 0, "Start and finish cannot break")
 	print("SIMULATION_TESTS: " + ("PASS" if failures == 0 else str(failures) + " FAILED"))
 	quit(0 if failures == 0 else 1)
 

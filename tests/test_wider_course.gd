@@ -28,7 +28,7 @@ func _initialize() -> void:
 	old.players[0].p = Vector2(390, -501)
 	var data: Dictionary = old.snapshot(); data.version = 7
 	var restored = Model.restore(data)
-	check(restored != null and restored.players[0].landed == 8 and restored.players[0].p.x == restored.platform_x(8), "Previous release resumes safely on its checkpoint in the new arena")
+	check(restored != null and restored.players[0].landed == 8 and is_equal_approx(restored.players[0].p.x, restored.platform_x(8)), "Previous release resumes safely on its checkpoint in the new arena")
 	check(restored.players[0].stars == 1 and restored.players[0].rescues == 2, "Geometry migration keeps collected rewards and adds no fall penalty")
 	var fresh_data: Dictionary = old.snapshot()
 	var fresh = Model.restore(fresh_data)

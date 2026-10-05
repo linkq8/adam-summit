@@ -47,7 +47,7 @@ func run():
 	p.launch_target = boosted.spring_profile(17).target; p.launch_target_x = boosted.spring_profile(17).target_x; p.v.y = -1500
 	check(signf(boosted.autopilot(0)) == signf(p.launch_target_x - p.p.x), "Spring demo steering follows its elevated target immediately")
 	# The render pool must grow and then safely reuse its spare sprites when
-	# television players advance from the longer chapter to a shorter chapter.
+	# television players advance to a fresh chapter after reaching a late row.
 	var game = load("res://main.tscn").instantiate(); root.add_child(game)
 	game.demo = true; game.stop_audio(); game.set_physics_process(false)
 	game.tv = true; game.player_count = 4; game.level = 0; game.start_race()
@@ -62,7 +62,7 @@ func run():
 	game.level = 1; game.start_race()
 	for stage in game.stages:
 		stage._process(Pace.STEP)
-		check(not stage.terrain[100].visible and not stage.branches[100].visible, "Shorter next chapter hides unused pool sprites")
+		check(not stage.terrain[100].visible and not stage.branches[100].visible, "Next chapter hides off-camera pool sprites")
 	game.stop_audio(); await create_timer(0.2).timeout
 	game.queue_free(); await process_frame; await process_frame
 	print("COURSE_LAYOUT_TESTS: ", "PASS" if failures == 0 else "FAIL")

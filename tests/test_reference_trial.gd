@@ -67,18 +67,17 @@ func _initialize():
 		check(parked.players[0].finish < 0 and parked.players[0].highest < parked.course_steps, "Fixed column cannot complete the course")
 	for chapter in range(1, 15):
 		var unchanged = Model.new(false, 1, chapter, 1)
-		check(unchanged.gravity == Model.GRAVITY and unchanged.jump_speed == Model.JUMP and unchanged.actor_height == 138.0, "Other adventure stages keep their original physics and size")
+		check(unchanged.gravity == m.gravity and unchanged.jump_speed == m.jump_speed and unchanged.actor_height == m.actor_height, "All adventure stages share the approved physics and size")
 	var endless = Model.new(false, 1, 0, 1, true)
 	check(endless.gravity == Model.GRAVITY and endless.jump_speed == Model.JUMP and endless.actor_height == 138.0, "Endless tuning remains independent")
-	# Old stage-one airborne saves resume without a new rescue penalty; old
-	# saves in other chapters retain their precise position.
+	# Older adventure saves resume safely without a new rescue penalty.
 	m.players[0].highest = 11; m.players[0].checkpoint = 8; m.players[0].rescues = 2
 	var data: Dictionary = m.snapshot(); data.version = 8; data.course_steps = 52
 	var migrated = Model.restore(data)
 	check(migrated.players[0].landed == 16 and migrated.players[0].rescues == 2, "Version-eight stage-one saves migrate safely")
 	var other = Model.new(false, 1, 4, 1); other.players[0].p = Vector2(251, -401)
-	data = other.snapshot(); data.version = 8
-	check(Model.restore(data).players[0].p == other.players[0].p, "Other version-eight journeys keep their airborne position")
+	data = other.snapshot(); data.version = 8; data.course_steps = 52
+	check(Model.restore(data).players[0].landed == 0 and Model.restore(data).players[0].rescues == 0, "Other older journeys resume at a safe checkpoint without a penalty")
 	for source in [17, 22, 38, 58, 92, 118, 119]:
 		var boosted = Model.new(false, 1, 0, 1)
 		var normal = Model.new(false, 1, 0, 1)

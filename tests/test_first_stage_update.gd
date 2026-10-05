@@ -32,12 +32,12 @@ func _initialize() -> void:
 			max_gap = maxf(max_gap, gap)
 			if course.platforms[i].has("branch_x"):
 				branches += 1
-		check(opening_width < comparison_width, "First stage uses smaller main landings at difficulty %d" % difficulty)
+		check(opening_width >= comparison_width and comparison_width >= opening_width * 0.95, "All adventure stages use the compact landing family at difficulty %d" % difficulty)
 		check(float(course.platforms[5].w) <= [172.0, 154.0, 140.0][difficulty], "Opening main landings use the tighter width at difficulty %d" % difficulty)
 		check(float(course.platforms[Model.STEERING_GATES[0]].w) <= 136.0, "Main trial floor fits the approved width at difficulty %d" % difficulty)
 		check(branches >= 20, "First stage exposes many additional landing choices")
 		check(min_gap >= 56.0 and max_gap <= 83.0 and max_gap - min_gap >= 24.0, "First-stage jump heights visibly vary")
-		check(not comparison.platforms[Model.FIRST_STAGE_FRAGILE[0]].has("instant_break"), "New geometry stays limited to stage one")
+		check(comparison.course_steps == course.course_steps and comparison.actor_height == course.actor_height, "Geometry tuning extends to the next chapter")
 
 		for platform in Model.FIRST_STAGE_FRAGILE:
 			var plat: Dictionary = course.platforms[platform]

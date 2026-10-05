@@ -50,8 +50,9 @@ var endless := false
 var endless_base := 0
 var endless_score := 0
 var ended := false
-# Trial tuning is restricted to the first adventure chapter.
-const FIRST_STAGE_STEPS := 120
+# Adventure tuning shared by all chapters; endless retains its independent envelope.
+const ADVENTURE_STEPS := 120
+const FIRST_STAGE_STEPS := ADVENTURE_STEPS
 var course_steps := STEPS
 var gravity := GRAVITY
 var jump_speed := JUMP
@@ -65,8 +66,8 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 	level = clampi(chapter, 0, Worlds.COUNT - 1)
 	world = level / 3
 	difficulty = (0 if assisted else 1) if challenge < 0 else clampi(challenge, 0, 2)
-	if level == 0 and not endless:
-		course_steps = FIRST_STAGE_STEPS
+	if not endless:
+		course_steps = ADVENTURE_STEPS
 		gravity = 2400.0
 		jump_speed = 1200.0
 		actor_height *= 0.8
@@ -97,166 +98,7 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 		players[i].platform_hits.fill(0)
 
 func _build_adventure_platforms() -> void:
-	if level == 0:
-		_configure_first_stage()
-		return
-	var stage_kind := level % 3
-	var route: Array = Worlds.ROUTES[level]
-	var chapter_gap: float = [94.0, 99.0, 102.0][stage_kind]
-	var height := START_Y
-	for i in range(STEPS + 1):
-		if i > 0:
-			height -= chapter_gap + [0.0, -6.0, 3.0, -2.0, 4.0, -4.0][(i + level) % 6]
-		var checkpoint := i > 0 and i % 8 == 0
-		var moving_frequency: int = [11, 5, 7][stage_kind]
-		var fragile_frequency: int = [13, 9, 7][stage_kind]
-		var hazard_start: int = [18, 7, 5][stage_kind] + (4 if easy else 0)
-		var base_width: float = [276.0, 248.0, 226.0][difficulty]
-		var width_pattern: float = ([1.0, 0.82, 0.70, 0.82] if easy else [1.0, 0.76, 0.58, 0.76])[(i + level) % 4]
-		platforms.append({
-			"x": clampf(float(route[i % route.size()]), 185, 380) if i > 0 else 280.0,
-			"y": height,
-			"w": 490.0 if i == 0 else base_width * width_pattern,
-			"durability": 0 if checkpoint or i == STEPS or i < (9 if easy else 4) else (1 if i % fragile_frequency == 3 else (2 if i % fragile_frequency == 5 else 0)),
-			"moving": i > hazard_start and i < STEPS and not checkpoint and i % moving_frequency == 3,
-			"checkpoint": checkpoint,
-			"spring": i > 4 and i < STEPS - 4 and i % 16 == 6 and (world in [2, 4] or stage_kind == 0),
-			"mud": i > hazard_start and i < STEPS - 3 and i % (15 if stage_kind == 0 else 11) == 6 and world in [0, 3],
-			"sticky": i > hazard_start and i < STEPS - 3 and i % (14 if stage_kind < 2 else 10) == 7 and world == 4,
-			"orb": i > hazard_start and i < STEPS and not checkpoint and i % ([17, 10, 9][stage_kind]) == 7,
-			"enemy": i > hazard_start and i < STEPS and not checkpoint and i % ([15, 8, 7][stage_kind]) == 4
-		})
-	for plat in platforms:
-		if plat.durability > 0:
-			var capacity: int = plat.durability
-			_clear_platform_hazards(plat)
-			plat.durability = capacity
-	for start in FORK_STARTS:
-		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
-		var side := shortcut_edge if platforms[start - 1].x < 280 else AUTHOR_WIDTH - shortcut_edge
-		var shortcut_lift: float = [0.0, 28.0, 40.0][stage_kind]
-		if level == 10:
-			shortcut_lift = 0.0
-		platforms[start + 3].x = 280.0
-		platforms[start + 3].w = maxf(215, platforms[start + 3].w)
-		_clear_platform_hazards(platforms[start + 3])
-		for j in range(start, start + 3):
-			platforms[j]["branch_x"] = side
-			platforms[j]["branch_y"] = platforms[j].y - shortcut_lift * [0.78, 1.0, 1.16][j - start]
-			platforms[j]["shortcut"] = shortcut_lift > 0
-			platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
-			var branch_base: float = [132.0, 112.0, 96.0][difficulty]
-			platforms[j]["branch_w"] = branch_base * [1.0, 0.82, 1.12][j - start]
-			platforms[j].w = maxf(platforms[j].w, 215.0 if easy else 185.0)
-			_clear_platform_hazards(platforms[j])
-	if stage_kind == 2:
-		for j in range(STEPS - 8, STEPS):
-			var plat: Dictionary = platforms[j]
-			plat.erase("branch_x")
-			_clear_platform_hazards(plat)
-			if not plat.checkpoint:
-				match world:
-					0:
-						plat.x = 195.0 if j % 2 == 0 else 365.0
-						plat.w = 198.0 if easy else 166.0
-						plat.mud = j % 3 == 0
-					1:
-						plat.moving = true
-						plat.w = 212.0 if easy else 178.0
-					2:
-						plat.spring = j % 3 == 1
-						plat.w = 218.0 if easy else 174.0
-					3:
-						plat.x = 225.0 if j % 2 == 0 else 335.0
-						plat.w = (165.0 if easy else 128.0) if j % 2 else 242.0
-						plat.mud = j % 3 == 1
-					4:
-						plat.durability = 2 if j % 2 else 0
-						plat.sticky = j % 3 == 0
-	for pair in range(STEERING_GATES.size()):
-		for offset in range(2):
-			var j: int = STEERING_GATES[pair] + offset
-			var plat: Dictionary = platforms[j]
-			plat.x = 390.0 if (pair + level + offset) % 2 == 0 else 170.0
-			plat.w = 150.0
-			_clear_platform_hazards(plat)
-	for start in FORK_STARTS:
-		var shortcut_edge := 70.0 if stage_kind == 0 else 110.0
-		var side := shortcut_edge if platforms[start - 1].x < 280 else AUTHOR_WIDTH - shortcut_edge
-		for j in range(start, start + 3):
-			if platforms[j].has("branch_x"):
-				platforms[j].branch_x = side
-				platforms[j].x = maxf(280, platforms[j].x) if side < 280 else minf(280, platforms[j].x)
-	# Narrow every adventure landing while keeping start and summit broad.
-	for i in range(1, STEPS):
-		var plat: Dictionary = platforms[i]
-		if not (i in STEERING_GATES or i - 1 in STEERING_GATES):
-			plat.w = maxf(96.0, float(plat.w) * (0.94 if plat.checkpoint else 0.92))
-		if plat.has("branch_x"):
-			plat.branch_w = maxf(78.0, float(plat.branch_w) * 0.94)
-	_configure_mud_escapes()
-	platforms[STEPS].x = 280.0
-	platforms[STEPS].w = 300.0
-	_widen_and_add_routes()
-
-func _widen_and_add_routes() -> void:
-	# Preserve the authored jump distances, then use the larger arena for extra
-	# side landings. Broadening a route by stretching every gap would break jumps.
-	for i in range(platforms.size()):
-		var plat: Dictionary = platforms[i]
-		plat.x += COURSE_OFFSET
-		plat.w *= 0.90 if plat.checkpoint else 0.84
-		if i in STEERING_GATES or i - 1 in STEERING_GATES:
-			plat.x += 10.0 if float(plat.x) < CENTER else -10.0
-		if plat.has("branch_x"):
-			plat.branch_x += COURSE_OFFSET
-			plat.branch_w *= 0.88
-			# Compact fork landings need a little more horizontal reach margin.
-			if i in FORK_STARTS or i - 1 in FORK_STARTS or i - 2 in FORK_STARTS:
-				plat.branch_x += 30.0 if float(plat.branch_x) < CENTER else -30.0
-		if plat.mud:
-			plat.mud_half_width = float(plat.w) * 0.16
-	platforms[0].w = 400.0
-	platforms[STEPS].w = 250.0
-	for i in range(3, STEPS - 1):
-		var plat: Dictionary = platforms[i]
-		if plat.has("branch_x") or plat.checkpoint or i in STEERING_GATES or i - 1 in STEERING_GATES:
-			continue
-		var previous_x: float = platforms[i - 1].x
-		var next_x: float = platforms[i + 1].x
-		var left := maxf(70.0, maxf(previous_x - 145.0, next_x - 145.0))
-		var right := minf(WIDTH - 70.0, minf(previous_x + 145.0, next_x + 145.0))
-		for neighbor in [platforms[i - 1], platforms[i + 1]]:
-			if neighbor.has("branch_x"):
-				left = maxf(left, float(neighbor.branch_x) - 145.0)
-				right = minf(right, float(neighbor.branch_x) + 145.0)
-		if left > right:
-			continue
-		var side := left if float(plat.x) >= CENTER else right
-		var branch_width: float = [96.0, 84.0, 76.0][difficulty]
-		if absf(side - float(plat.x)) < (float(plat.w) + branch_width) * 0.5 + 8.0:
-			continue
-		plat.branch_x = side
-		plat.branch_y = float(plat.y)
-		plat.branch_w = branch_width
-		plat.branch_durability = 0
-		plat.branch_safe = true
-		plat.shortcut = false
-
-func _configure_mud_escapes() -> void:
-	for i in range(1, STEPS):
-		var plat: Dictionary = platforms[i]
-		if not plat.mud:
-			continue
-		# Clear landing strips on both edges and a permanent raised bypass.
-		plat.moving = false
-		plat.mud_half_width = float(plat.w) * 0.16
-		if not plat.has("branch_x"):
-			_add_first_stage_branch(i, true, 18.0)
-			plat.shortcut = false
-		else:
-			plat.branch_durability = 0
-			plat.branch_safe = true
+	_configure_field_stage()
 
 func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 	if absolute_index == 0:
@@ -314,21 +156,33 @@ func _clear_platform_hazards(plat: Dictionary) -> void:
 	plat.enemy = false
 	plat.orb = false
 
-func _configure_first_stage() -> void:
+func _configure_field_stage() -> void:
 	# Seeded, bounded placements form a field of landings, rather than two
 	# repeated lanes. The same geometry is shared by every racer/difficulty.
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 81820261001
+	var opening := level == 0
+	var kind := level % 3
+	rng.seed = 81820261001 + level * 104729
 	var xs: Array[float] = [CENTER, 500.0, 220.0, 510.0, 180.0]
+	if level % 2 == 1:
+		for i in range(1, xs.size()): xs[i] = WIDTH - xs[i]
 	var direction_run := 0
 	var previous_direction := 0
 	for i in range(5, course_steps + 1):
 		var candidates: Array[float] = []
-		for lane in [105.0, 180.0, 255.0, 330.0, 405.0, 480.0, 565.0]:
-			var x: float = lane + rng.randf_range(-18.0, 18.0)
+		# Two brief opening bands require steering even when a tall jump
+		# skips intermediate rows. The rest of the course is an open field.
+		var lanes := [105.0, 180.0, 255.0, 330.0, 405.0, 480.0, 565.0]
+		var steering_band := not opening and i <= 16
+		if steering_band:
+			var left_band: bool = (i <= 10) == (level % 2 == 0)
+			lanes = [105.0, 220.0] if left_band else [460.0, 575.0]
+			if i == 10: lanes = [220.0 if left_band else 460.0]
+		for lane in lanes:
+			var x: float = lane + rng.randf_range(-8.0 if steering_band else -18.0, 8.0 if steering_band else 18.0)
 			var delta: float = x - xs[-1]
-			if absf(delta) < 70.0 or absf(delta) > 260.0: continue
-			if direction_run >= 2 and int(signf(delta)) == previous_direction: continue
+			if (not steering_band and absf(delta) < 70.0) or absf(delta) > 260.0: continue
+			if not steering_band and direction_run >= 2 and int(signf(delta)) == previous_direction: continue
 			candidates.append(x)
 		var chosen: float = candidates[rng.randi_range(0, candidates.size() - 1)]
 		var direction := int(signf(chosen - xs[-1]))
@@ -338,47 +192,61 @@ func _configure_first_stage() -> void:
 	var height := START_Y
 	for i in range(course_steps + 1):
 		if i > 0:
-			height -= float([64, 78, 70, 80][i - 1]) if i <= 4 else float(rng.randi_range(28, 41) * 2)
+			var gap_shift := 0 if opening else kind * 2
+			height -= float([64, 78, 70, 80][i - 1] + gap_shift * 2) if i <= 4 else float(rng.randi_range(28 + gap_shift, 41 + gap_shift) * 2)
 		var checkpoint := i > 0 and i < course_steps and i % 8 == 0
-		var fragile := i < course_steps and (i in FIRST_STAGE_FRAGILE or (i > STEPS and i % 13 == 3 and not checkpoint))
-		var muddy := i in FIRST_STAGE_MUD or i in [63, 87, 109]
-		var plat := {"x": xs[i], "y": height, "w": float([136.0, 132.0, 128.0][difficulty]) * float([1.0, 0.99, 0.96][i % 3]),
+		var fragile: bool = i < course_steps and (i in FIRST_STAGE_FRAGILE or (i > STEPS and i % 13 == 3 and not checkpoint)) if opening else i > 16 and i < course_steps - 4 and not checkpoint and i % [19, 15, 13][kind] == [7, 6, 3][kind]
+		var muddy: bool = i in FIRST_STAGE_MUD or i in [63, 87, 109] if opening else world in [0, 3] and i > 16 and i < course_steps - 5 and i % [27, 23, 19][kind] == [13, 14, 9][kind]
+		var extra_route: bool = i in FIRST_STAGE_EXTRA_ROUTES if opening else i > 16 and i < course_steps - 6 and i % [19, 17, 15][kind] == [5, 6, 7][kind]
+		var two_use: bool = (i in [5, 17, 31, 44] or i > STEPS and i % 17 == 5) and not checkpoint if opening else i > 16 and i < course_steps - 4 and not checkpoint and i % [23, 19, 17][kind] == 5
+		var hazard_start := 24 if easy else 17
+		var phase_width: float = 1.0 if opening else [1.0, 0.98, 0.96][kind]
+		var plat := {"x": xs[i], "y": height, "w": float([136.0, 132.0, 128.0][difficulty]) * float([1.0, 0.99, 0.96][i % 3]) * phase_width,
 			"durability": 0, "moving": false, "checkpoint": checkpoint,
-			"spring": i in [22, 38, 58, 92], "mud": muddy,
-			"sticky": false, "orb": i in [39, 83], "enemy": i in [19, 67, 101]}
+			"spring": i in [22, 38, 58, 92] if opening else i > 16 and i < course_steps - 5 and i % ([26, 24, 22][kind] if world in [2, 4] else [32, 28, 26][kind]) == 14,
+			"mud": muddy, "sticky": false if opening else world == 4 and i > hazard_start and i < course_steps - 5 and i % [29, 23, 19][kind] == 9,
+			"orb": i in [39, 83] if opening else i > hazard_start and i < course_steps - 6 and i % [37, 29, 23][kind] == [19, 17, 15][kind],
+			"enemy": i in [19, 67, 101] if opening else i > hazard_start and i < course_steps - 6 and i % [31, 25, 21][kind] == [12, 13, 11][kind]}
 		if i == 0 or i == course_steps:
 			plat.x = CENTER
 			plat.w = 400.0 if i == 0 else 250.0
-		elif i >= 5 and (fragile or muddy or i in FIRST_STAGE_EXTRA_ROUTES or i in FORK_STARTS or i - 1 in FORK_STARTS or i - 2 in FORK_STARTS or rng.randf() < 0.48):
+		elif i >= 5 and (fragile or muddy or (two_use and not opening) or extra_route or i in FORK_STARTS or i - 1 in FORK_STARTS or i - 2 in FORK_STARTS or rng.randf() < 0.48):
 			var previous_x: float = xs[i - 1]
 			var next_x: float = CENTER if i + 1 == course_steps else xs[i + 1]
 			var previous_branch: float = float(platforms[-1].get("branch_x", previous_x))
-			var low := maxf(65.0, maxf(previous_x - 270.0, maxf(next_x - 270.0, previous_branch - 270.0)))
-			var high := minf(WIDTH - 65.0, minf(previous_x + 270.0, minf(next_x + 270.0, previous_branch + 270.0)))
+			var reach := 270.0 if opening else 210.0
+			var low := maxf(65.0, maxf(previous_x - reach, maxf(next_x - reach, previous_branch - reach)))
+			var high := minf(WIDTH - 65.0, minf(previous_x + reach, minf(next_x + reach, previous_branch + reach)))
+			if not opening and i <= 16:
+				var left_band: bool = (i <= 10) == (level % 2 == 0)
+				low = maxf(low, 65.0 if left_band else 420.0)
+				high = minf(high, 260.0 if left_band else WIDTH - 65.0)
 			var options: Array[float] = []
 			for side in [-1.0, 1.0]:
 				var bx := clampf(xs[i] + side * rng.randf_range(126.0, 165.0), low, high)
 				if low <= high and absf(bx - xs[i]) >= 116.0: options.append(bx)
 			if not options.is_empty():
 				plat.branch_x = options[rng.randi_range(0, options.size() - 1)]
-				plat.branch_y = height - float(rng.randi_range(7, 17) * 2)
-				plat.branch_w = [88.0, 82.0, 76.0][difficulty]
-				plat.branch_durability = 1 if i in FIRST_STAGE_EXTRA_ROUTES or i in FORK_STARTS else 0
+				plat.branch_y = height - float(rng.randi_range(7 if opening else 7 + kind, 17 if opening else 17 + kind) * 2)
+				plat.branch_w = [88.0, 82.0, 76.0][difficulty] * phase_width
+				plat.branch_durability = 1 if extra_route or i in FORK_STARTS else 0
 				plat.branch_safe = plat.branch_durability == 0
 				plat.branch_fragile = plat.branch_durability == 1
-				plat.shortcut = i in FIRST_STAGE_EXTRA_ROUTES
+				plat.shortcut = extra_route
 		# A hazard is authored only where a distinct reachable bypass fits.
 		if not plat.has("branch_x"):
 			fragile = false
 			plat.mud = false
-		if (i in [5, 17, 31, 44] or i > STEPS and i % 17 == 5) and not checkpoint:
+		if two_use and (opening or plat.has("branch_x")):
 			_clear_platform_hazards(plat)
 			plat.durability = 2
+			if not opening:
+				plat.branch_durability = 0; plat.branch_safe = true; plat.branch_fragile = false
 		if fragile:
 			_clear_platform_hazards(plat)
 			plat.durability = 1
 			plat.instant_break = true
-			plat.drop_on_contact = i in FIRST_STAGE_DROP or i > STEPS and i % 2 == 1
+			plat.drop_on_contact = i in FIRST_STAGE_DROP or i > STEPS and i % 2 == 1 if opening else i % 2 == 1 or i % 3 == kind
 			plat.branch_durability = 0
 			plat.branch_safe = true
 			plat.branch_fragile = false
@@ -386,25 +254,12 @@ func _configure_first_stage() -> void:
 			plat.mud_half_width = float(plat.w) * 0.16
 			plat.branch_durability = 0
 			plat.branch_safe = true
+		if not opening:
+			if i > hazard_start and i < course_steps - 5 and plat.has("branch_x") and not checkpoint and plat.durability == 0 and not plat.mud and not plat.sticky and not plat.spring:
+				plat.moving = i % ([17, 13, 11][kind] if world in [1, 3] else [29, 23, 19][kind]) == 3
+				plat.move_amplitude = [18.0, 21.0, 24.0][kind] if world in [1, 3] else [10.0, 12.0, 14.0][kind]
+			if checkpoint or i == course_steps: _clear_platform_hazards(plat)
 		platforms.append(plat)
-
-func _add_first_stage_branch(i: int, permanent: bool, lift: float) -> void:
-	var plat: Dictionary = platforms[i]
-	var main_x: float = float(plat.x)
-	var rise_from_previous: float = float(platforms[i - 1].y) - float(plat.y)
-	var reachable_lift: float = minf(lift, maxf(0.0, 136.0 - rise_from_previous))
-	var desired_x: float = 120.0 if main_x >= 280.0 else 440.0
-	var previous_x: float = float(platforms[i - 1].x)
-	var next_x: float = float(platforms[mini(STEPS, i + 1)].x)
-	var reachable_min: float = maxf(100.0, maxf(previous_x - 145.0, next_x - 145.0))
-	var reachable_max: float = minf(460.0, minf(previous_x + 145.0, next_x + 145.0))
-	plat.branch_x = clampf(desired_x, reachable_min, reachable_max)
-	plat.branch_y = float(plat.y) - reachable_lift
-	plat.branch_w = [116.0, 102.0, 90.0][difficulty]
-	plat.branch_durability = 0 if permanent else 1
-	plat.branch_safe = permanent
-	plat.branch_fragile = not permanent
-	plat.shortcut = true
 
 func _configure_spring_profiles() -> void:
 	for from_index in range(platforms.size() - 1):
@@ -418,38 +273,38 @@ func spring_profile(from_index: int, launch_y: float = INF, launch_x: float = IN
 	var start := clampi(from_index, 0, platforms.size() - 2)
 	var source_y: float = platforms[start].y if is_inf(launch_y) else launch_y
 	var source_x: float = platform_x(start, 0.0) if is_inf(launch_x) else launch_x
-	var trial := level == 0 and not endless
-	var clearance: float = 50.0 if trial else SPRING_CLEARANCE[level % 3]
-	var preferred_advance: int = 6 if trial else [2, 2, 3][level % 3]
+	var adventure := not endless
+	var clearance: float = 50.0 if adventure else SPRING_CLEARANCE[level % 3]
+	var preferred_advance: int = 6 if adventure else [2, 2, 3][level % 3]
 	for advance in range(preferred_advance, 1, -1):
 		var target := mini(platforms.size() - 1, start + advance)
 		if target <= start + 1:
 			continue
 		var surfaces := []
-		if bool(platforms[target].get("shortcut", false)) or (level == 0 and not endless and platforms[target].has("branch_x")):
+		if bool(platforms[target].get("shortcut", false)) or (not endless and platforms[target].has("branch_x")):
 			surfaces.append({"x": float(platforms[target].branch_x), "y": float(platforms[target].branch_y), "w": float(platforms[target].branch_w), "shortcut": true})
-		if not trial or not bool(platforms[target].get("drop_on_contact", false)):
+		if not adventure or not bool(platforms[target].get("drop_on_contact", false)):
 			surfaces.append({"x": platform_x(target, 0.0), "y": float(platforms[target].y), "w": float(platforms[target].w), "shortcut": false})
 		for surface in surfaces:
 			var rise: float = source_y - float(surface.y)
 			var scale := sqrt(2.0 * gravity * (rise + clearance)) / jump_speed
-			if level == 0 and not endless: scale = clampf(scale, 0.65, 1.58)
+			if not endless: scale = clampf(scale, 0.65, 1.58)
 			var launch_speed := jump_speed * scale
 			# Semi-implicit 60 Hz integration loses half a gravity tick from the
-			# continuous launch envelope; include it in first-stage reach checks.
-			if trial: launch_speed -= gravity / 120.0
+			# continuous launch envelope; include it in adventure reach checks.
+			if adventure: launch_speed -= gravity / 120.0
 			var discriminant := maxf(0.0, launch_speed * launch_speed - 2.0 * gravity * rise)
 			var flight_time := (launch_speed + sqrt(discriminant)) / gravity
 			var horizontal_gap := absf(float(surface.x) - source_x)
 			var landing_allowance := float(surface.w) * 0.5 + landing_half_width
 			if horizontal_gap <= SPEED * flight_time * 0.88 + landing_allowance:
 				return {"target": target, "target_x": surface.x, "target_y": surface.y, "shortcut": surface.shortcut,
-					"scale": scale if level == 0 and not endless else clampf(scale, 1.16, 1.58), "flight_time": flight_time}
+					"scale": scale if not endless else clampf(scale, 1.16, 1.58), "flight_time": flight_time}
 	var fallback := mini(platforms.size() - 1, start + 2)
 	var fallback_rise: float = source_y - platforms[fallback].y
 	var fallback_scale := sqrt(2.0 * gravity * (fallback_rise + clearance)) / jump_speed
 	return {"target": fallback, "target_x": platform_x(fallback, 0.0), "target_y": platforms[fallback].y, "shortcut": false,
-		"scale": clampf(fallback_scale, 0.65 if level == 0 and not endless else 1.16, 1.58), "flight_time": 0.0}
+		"scale": clampf(fallback_scale, 0.65 if not endless else 1.16, 1.58), "flight_time": 0.0}
 
 func remaining_jumps(index: int, platform: int) -> int:
 	var capacity: int = platforms[platform].durability
@@ -465,7 +320,7 @@ func branch_exists(index: int, platform: int) -> bool:
 
 func platform_x(i: int, at_time: float = -1.0) -> float:
 	var t := elapsed if at_time < 0 else at_time
-	return float(platforms[i].x) + (sin(t * (1.2 + world * 0.1) + i) * (42.0 if world in [1, 3] else 34.0) if platforms[i].moving else 0.0)
+	return float(platforms[i].x) + (sin(t * (1.2 + world * 0.1) + i) * float(platforms[i].get("move_amplitude", 42.0 if world in [1, 3] else 34.0)) if platforms[i].moving else 0.0)
 
 func enemy_x(i: int) -> float:
 	return platform_x(i) + sin(elapsed * 1.6 + i) * 46.0
@@ -612,7 +467,7 @@ func _land_player(index: int, previous: Vector2, dt: float, events: Array[Dictio
 		var jump_target := int(jump_profile.target) if spring_launch else -1
 		var jump_target_x := float(jump_profile.target_x) if spring_launch else platform_contact
 		if p.boost_jumps > 0:
-			jump_scale = float(jump_profile.scale) if level == 0 and not endless else maxf(jump_scale, float(jump_profile.scale))
+			jump_scale = float(jump_profile.scale) if not endless else maxf(jump_scale, float(jump_profile.scale))
 			jump_target = int(jump_profile.target)
 			jump_target_x = float(jump_profile.target_x)
 			spring_launch = true
@@ -720,11 +575,11 @@ func orb_position(i: int) -> Vector2:
 	return Vector2(platform_x(i) + sin(elapsed * (0.85 if easy else 1.15) + i) * 92, platforms[i].y - 68)
 
 func power_position(power: int) -> Vector2:
-	var j: int = [12, 58, 96][power] if level == 0 and not endless else POWER_STEPS[power]
+	var j: int = [12, 58, 96][power] if not endless else POWER_STEPS[power]
 	return Vector2(platform_x(j) + 42, platforms[j].y - 78)
 
 func box_position(box_id: int) -> Vector2:
-	var j: int = [19, 43, 73, 101][box_id] if level == 0 and not endless else BOX_STEPS[box_id]
+	var j: int = [19, 43, 73, 101][box_id] if not endless else BOX_STEPS[box_id]
 	return Vector2(platform_x(j) - 46, platforms[j].y - 72)
 
 func grant_power(index: int, power: int) -> void:
@@ -866,11 +721,11 @@ func autopilot(index: int) -> float:
 	return clampf(dx / 35.0, -1.0, 1.0)
 
 func secret_position(id: int) -> Vector2:
-	var step_index: int = [22, 62, 103][id] if level == 0 and not endless else SECRET_STEPS[id]
+	var step_index: int = [22, 62, 103][id] if not endless else SECRET_STEPS[id]
 	return Vector2(platform_x(step_index) + (-82 if (id + level) % 2 == 0 else 82), platforms[step_index].y - 105)
 
 func snapshot() -> Dictionary:
-	var data := {"version": 10, "course_steps": course_steps, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
+	var data := {"version": 11, "course_steps": course_steps, "level": level, "difficulty": difficulty, "elapsed": elapsed, "players": []}
 	for p in players:
 		data.players.append({
 			"x": p.p.x, "y": p.p.y, "vx": p.v.x, "vy": p.v.y,
@@ -884,7 +739,7 @@ func snapshot() -> Dictionary:
 	return data
 
 static func restore(data: Dictionary):
-	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] or not data.get("players") is Array or data.players.size() != 1:
+	if not int(data.get("version", 0)) in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] or not data.get("players") is Array or data.players.size() != 1:
 		return null
 	var chapter := clampi(int(data.get("level", 0)), 0, Worlds.COUNT - 1)
 	var challenge := clampi(int(data.get("difficulty", 0)), 0, 2)
@@ -922,8 +777,8 @@ static func restore(data: Dictionary):
 	p.bubble = bool(src.get("bubble", false))
 	# Changed landing widths can leave an older airborne save without a floor.
 	# Resume those journeys safely at their checkpoint with progress preserved.
-	if int(data.get("version", 1)) < 8 or (chapter == 0 and int(data.get("version", 1)) < 10):
-		if chapter == 0:
+	if int(data.get("version", 1)) < 8 or (chapter == 0 and int(data.get("version", 1)) < 10) or (chapter > 0 and int(data.get("version", 1)) < 11):
+		if chapter == 0 or chapter > 0 and int(data.get("version", 1)) < 11:
 			var previous_steps := maxi(1, int(data.get("course_steps", STEPS)))
 			var ratio := float(restored.course_steps) / previous_steps
 			p.highest = mini(restored.course_steps - 1, roundi(p.highest * ratio))

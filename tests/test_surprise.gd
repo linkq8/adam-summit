@@ -45,7 +45,7 @@ func route_finish_time(chapter: int, shortcut_route: bool) -> float:
 	return 999.0
 
 func _initialize() -> void:
-	check(Model.STEPS == 52, "Stages are 52 jumps long")
+	check(Model.ADVENTURE_STEPS == 120 and Model.STEPS == 52, "Adventure courses have 120 rows; endless retains a 52-row buffer")
 	var item_texture: Texture2D = load("res://assets/ui/surprise-items-v2.png")
 	var item_art := item_texture.get_image()
 	check(not item_art.is_empty() and item_art.get_size() == Vector2i(768, 512) and item_art.detect_alpha() != Image.ALPHA_NONE, "Painted item atlas keeps transparent padding")
@@ -72,7 +72,7 @@ func _initialize() -> void:
 
 	var spring_course = Model.new(false, 1, 6, 1)
 	var spring_platform := -1
-	for i in range(1, Model.STEPS):
+	for i in range(1, spring_course.course_steps):
 		if spring_course.platforms[i].spring:
 			spring_platform = i
 			break
@@ -80,7 +80,7 @@ func _initialize() -> void:
 	land_on(spring_course, 0, spring_platform)
 	var spring_profile: Dictionary = spring_course.spring_profile(spring_platform)
 	check(spring_profile.target >= spring_platform + 2, "Environmental spring aims at least two platforms higher")
-	check(is_equal_approx(spring_course.players[0].v.y, -Model.JUMP * float(spring_profile.scale)), "Environmental spring uses the stage-specific launch height")
+	check(is_equal_approx(spring_course.players[0].v.y, -spring_course.jump_speed * float(spring_profile.scale)), "Environmental spring uses the stage-specific launch height")
 	check(spring_course.players[0].launch_target == spring_profile.target, "Spring communicates its useful landing target")
 	var spring_time := time_to_platform(spring_course, int(spring_profile.target))
 	var normal_course = Model.new(false, 1, 6, 1)
@@ -89,7 +89,11 @@ func _initialize() -> void:
 	var normal_time := time_to_platform(normal_course, int(spring_profile.target))
 	check(spring_time + 0.20 < normal_time, "A well-aimed spring reaches its target materially faster than normal jumps")
 	var shortcut_course = Model.new(false, 1, 2, 1)
-	var shortcut: Dictionary = shortcut_course.platforms[Model.FORK_STARTS[0]]
+	var shortcut: Dictionary = {}
+	for platform in shortcut_course.platforms:
+		if bool(platform.get("shortcut", false)):
+			shortcut = platform; break
+	check(not shortcut.is_empty(), "Finale provides a marked route choice")
 	check(shortcut.shortcut and shortcut.branch_y < shortcut.y, "Finale stage offers a raised faster route")
 	check(shortcut.branch_w < shortcut.w, "Faster route trades landing width for speed")
 	var introduction_course = Model.new(false, 1, 0, 1)

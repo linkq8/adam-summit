@@ -36,7 +36,7 @@ func run() -> void:
 	for chapter in range(15):
 		for difficulty in range(3):
 			var course = Model.new(difficulty == 0, 1, chapter, difficulty)
-			for index in range(1, Model.STEPS):
+			for index in range(1, course.course_steps):
 				var plat: Dictionary = course.platforms[index]
 				if not plat.mud:
 					continue

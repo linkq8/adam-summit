@@ -628,7 +628,7 @@ func camera_for(p: Dictionary, shown_position: Vector2 = Vector2.INF, shown_came
 	var position: Vector2 = p.p if shown_position == Vector2.INF else shown_position
 	var climb_camera: float = (p.camera if shown_camera == INF else shown_camera) - maxf(0, view_height - 600) * 0.65
 	var reserve := 280.0
-	if game != null and game.model != null and game.model.level == 0 and not game.model.endless:
+	if game != null and game.model != null and not game.model.endless:
 		reserve = 400.0
 	return maxf(climb_camera, position.y + reserve - view_height)
 
