@@ -16,7 +16,8 @@ const MENU_ICONS = preload("res://assets/ui/menu-actions.svg")
 const MENU_GOLD := Color("f3c45e")
 const MENU_CREAM := Color("fff5dc")
 const MENU_TEAL := Color("173f3e")
-const ITEM_ART = preload("res://assets/ui/surprise-items-v2.png")
+const GameArt = preload("res://scripts/game_art.gd")
+const ITEM_ART = GameArt.OBJECTS
 const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
 var world_art: Texture2D
 const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
@@ -135,7 +136,8 @@ func _ready() -> void:
 		var atlas := AtlasTexture.new()
 		atlas.atlas = ITEM_ART
 		var cell := item + 1
-		atlas.region = Rect2((cell % 3) * 256, (cell / 3) * 256, 256, 256)
+		atlas.region = GameArt.OBJECT_REGIONS[cell]
+		atlas.filter_clip = true
 		item_textures.append(atlas)
 	var args := OS.get_cmdline_user_args()
 	tv = "--tv" in args or "--tv-device" in args
@@ -469,13 +471,13 @@ func menu_world(rect: Rect2) -> void:
 
 func menu_landing(at: Vector2, width: float) -> void:
 	var ground := Sprite2D.new()
-	ground.texture = Stage.PLATFORM
-	ground.material = ShaderMaterial.new()
-	ground.material.shader = Stage.KEY
-	ground.material.set_shader_parameter("magenta_key", true)
-	ground.position = at - Vector2(0, width * 0.035)
+	var art_id := GameArt.platform_id(level / 3, 0)
+	ground.texture = GameArt.PLATFORMS
+	ground.region_enabled = true; ground.region_filter_clip_enabled = true
+	ground.region_rect = GameArt.PLATFORM_REGIONS[art_id]
 	ground.centered = false
-	ground.scale = Vector2(width / ground.texture.get_width(), width * 0.25 / ground.texture.get_height())
+	ground.scale = Vector2.ONE * width / ground.region_rect.size.x
+	ground.position = at - Vector2(0, GameArt.LANDING_LIPS[art_id] * ground.scale.y)
 	ground.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	modal.add_child(ground)
 

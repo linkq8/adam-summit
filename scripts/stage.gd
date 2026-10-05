@@ -3,22 +3,20 @@ const Atlas = preload("res://scripts/atlas_batch.gd")
 const Batch = preload("res://scripts/canvas_batch.gd")
 const Wardrobe = preload("res://scripts/wardrobe.gd")
 const ICONS = preload("res://assets/ui/game-icons.svg")
-const ITEMS = preload("res://assets/ui/surprise-items-v2.png")
+const Art = preload("res://scripts/game_art.gd")
+const ITEMS = Art.OBJECTS
 const Model = preload("res://scripts/race_model.gd")
-const KEY = preload("res://scripts/chroma.gdshader")
-const PLATFORM = preload("res://assets/platform-v2.png")
+const PLATFORM = Art.PLATFORMS
 const BACKGROUND = preload("res://assets/garden-v2.png")
 const WORLD_BG = preload("res://assets/world-backgrounds.png")
-const WORLD_TILES = preload("res://assets/world-platforms.png")
 const EXTRA_BG = preload("res://assets/coast-forest-backgrounds.png")
-const EXTRA_TILES = preload("res://assets/coast-forest-platforms.png")
 var terrain_batch := Batch.new()
 var terrain_canvas: Node2D
 var geometry := Batch.new(true)
 var icon_batch := Atlas.new()
 var item_batch := Atlas.new()
 var mark_batch := Batch.new(true)
-var ink_batch := Batch.new(true)
+var ink_batch := Batch.new()
 var ink_canvas: Node2D
 var fx_batch := Batch.new(true)
 var fx_items := Atlas.new()
@@ -63,26 +61,20 @@ var ink_shapes: Array[Dictionary] = []
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var terrain_material := ShaderMaterial.new()
-	terrain_material.shader = KEY
-	terrain_material.set_shader_parameter("magenta_key", true)
 	for i in range(Model.STEPS + 1):
 		var tile := Sprite2D.new()
 		tile.texture = PLATFORM
 		tile.centered = false
-		tile.material = terrain_material
 		tile.visibility_layer = 0 # Logical sprite data; rendered together by terrain_canvas.
 		tile.z_index = 0
 		add_child(tile)
 		terrain.append(tile)
 		var branch := Sprite2D.new()
 		branch.centered = false
-		branch.material = terrain_material
 		branch.visibility_layer = 0
 		add_child(branch)
 		branches.append(branch)
 	terrain_canvas = Node2D.new()
-	terrain_canvas.material = terrain_material
 	terrain_canvas.draw.connect(draw_terrain)
 	add_child(terrain_canvas)
 	marks = Node2D.new()
@@ -96,6 +88,9 @@ func _ready() -> void:
 	hero.scale = Vector2.ONE * Wardrobe.scale_for(hero, game.model.actor_height if game != null and game.model != null else 138.0)
 	add_child(hero)
 	ink_canvas = Node2D.new()
+	var ink_material := ShaderMaterial.new()
+	ink_material.shader = preload("res://scripts/ink_paint.gdshader")
+	ink_canvas.material = ink_material
 	ink_canvas.z_index = 4
 	ink_canvas.draw.connect(draw_ink_effects)
 	add_child(ink_canvas)
@@ -131,6 +126,10 @@ func _process(dt: float) -> void:
 		terrain_dirty = terrain_dirty or terrain[i].visible != visible_tile
 		terrain[i].visible = visible_tile
 		if visible_tile:
+			var art_id := Art.platform_id(game.model.world, Art.platform_kind(plat, game.model.remaining_jumps(index, i)))
+			if terrain[i].region_rect != Art.PLATFORM_REGIONS[art_id]:
+				offsets[i] = register_tile(terrain[i], float(plat.w), art_id)
+				terrain_dirty = true
 			var position_tile := Vector2(game.model.platform_x(i), y) + offsets[i]
 			terrain_dirty = terrain_dirty or not is_equal_approx(terrain[i].position.x, position_tile.x)
 			terrain[i].position = position_tile
@@ -217,10 +216,14 @@ func icon(kind: int, at: Vector2, size: float, tint: Color = Color.WHITE) -> voi
 	icon_batch.rect_region(Rect2(at - Vector2.ONE * size / 2, Vector2.ONE * size), Rect2(kind * 128, 0, 128, 128), ICONS, tint)
 
 func atlas_item(canvas: CanvasItem, cell: int, at: Vector2, size: float, alpha: float = 1.0) -> void:
-	var column := cell % 3
-	var row := cell / 3
 	var target = fx_items if canvas == screen_fx else item_batch
-	target.rect_region(Rect2(at - Vector2.ONE * size * 0.5, Vector2.ONE * size), Rect2(column * 256, row * 256, 256, 256), ITEMS, Color(1, 1, 1, alpha))
+	var dimensions := Art.object_size(cell, size)
+	target.rect_region(Rect2(at - dimensions * 0.5, dimensions), Art.OBJECT_REGIONS[cell], ITEMS, Color(1, 1, 1, alpha))
+
+func object_on_surface(kind: int, at: Vector2, size: float, width: float = -1.0) -> void:
+	var dimensions := Art.object_size(kind, size)
+	if width > 0: dimensions *= width / dimensions.x
+	item_batch.rect_region(Rect2(at - Vector2(dimensions.x * 0.5, dimensions.y), dimensions), Art.OBJECT_REGIONS[kind], ITEMS, Color.WHITE)
 
 func draws_panel_background() -> bool:
 	return game != null and game.tv and game.player_count > 1
@@ -255,7 +258,7 @@ func predicted_landing(player: Dictionary) -> Vector2:
 	return best
 
 func star(at: Vector2, radius: float, tint: Color = Color("ffce4c")) -> void:
-	icon(0, at, radius * 64.0 / 26.0, Color(1, 1, 1, tint.a))
+	atlas_item(self, Art.STAR, at, radius * 2.0, tint.a)
 
 func flower(at: Vector2, tint: Color) -> void:
 	icon(1 if tint.g > 0.8 else 2, at, 32)
@@ -309,25 +312,21 @@ func _draw() -> void:
 				flower(Vector2(x - w * 0.3, y - 6), Color("fff6d4"))
 				flower(Vector2(x + w * 0.34, y - 5), Color("f6a9b7"))
 		if plat.spring:
-			geometry.circle(Vector2(x, y - 22), 31, Color(0.38, 0.91, 0.94, 0.16))
-			atlas_item(self, 4, Vector2(x, y - 24), 62)
-			draw_spring_guide(Vector2(x, y - 58), float(plat.spring_target_x) - x)
+			object_on_surface(Art.SPRING, Vector2(x, y + 1), 54)
+			draw_spring_guide(Vector2(x, y - 65), float(plat.spring_target_x) - x)
 		if plat.mud:
+			# Match the visible patch exactly to the existing collision footprint;
+			# the untouched dry ends and independent safe branch remain visible.
 			var mud_radius: float = float(plat.get("mud_half_width", 88.0))
-			geometry.ellipse(Vector2(x, y - 5), mud_radius, 21, Color("573f35"), true)
-			geometry.ellipse(Vector2(x - mud_radius * 0.09, y - 8), mud_radius * 0.63, 10, Color("8f6a4e"), true)
-			for bubble in range(3):
-				geometry.circle(Vector2(x - 24 + bubble * 24, y - 10 - bubble % 2 * 3), 4 + bubble, Color("b9906b"))
+			object_on_surface(Art.MUD, Vector2(x, y + 2), 40, mud_radius * 2)
 		if plat.sticky:
-			geometry.circle(Vector2(x, y - 19), 27, Color(0.95, 0.33, 0.53, 0.14))
-			atlas_item(self, 3, Vector2(x, y - 22), 52)
+			object_on_surface(Art.STICKY_PUDDLE, Vector2(x, y + 2), 50)
 		if plat.moving:
 			geometry.line(Vector2(x - 13, y + 23), Vector2(x + 13, y + 23), Color("ffdf90"), 2)
 			geometry.line(Vector2(x - 13, y + 23), Vector2(x - 8, y + 19), Color("ffdf90"), 2)
 			geometry.line(Vector2(x + 13, y + 23), Vector2(x + 8, y + 19), Color("ffdf90"), 2)
 		if plat.checkpoint and i > 0 and i < model.course_steps:
-			geometry.line(Vector2(x - w * 0.36, y), Vector2(x - w * 0.36, y - 40), Color("78573b"), 3)
-			geometry.polygon(PackedVector2Array([Vector2(x - w * 0.36, y - 40), Vector2(x - w * 0.36 + 24, y - 34), Vector2(x - w * 0.36, y - 24)]), Color("f6ca5d"))
+			object_on_surface(Art.CHECKPOINT, Vector2(x - w * 0.32, y), 38)
 		if not model.endless and i > 0 and i < model.course_steps and not player.collected.has(i):
 			star(Vector2(x, y - 55 + sin(time * 2.5 + i) * 4), 13)
 		if plat.enemy:
@@ -464,24 +463,17 @@ func draw_platform_marks() -> void:
 		var y: float = plat.y - camera
 		if remaining <= 0 or not terrain[i].visible: continue
 		var x: float = model.platform_x(i)
-		# Dots communicate remaining uses without relying on color alone.
-		for dot in range(plat.durability):
-			var at := Vector2(x + (dot - (plat.durability - 1) / 2.0) * 16, y - 10)
-			mark_batch.circle(at, 6, Color("744738"))
-			mark_batch.circle(at, 3.5, Color("fff2cb") if dot < remaining else Color("9d7560"))
-		var damaged: bool = remaining < plat.durability
-		var offsets: Array = [-0.23, 0.23] if damaged or plat.durability == 1 else [0.0]
-		for offset in offsets:
-			var at := Vector2(x + plat.w * offset, y + 1)
-			mark_batch.polyline(PackedVector2Array([at, at + Vector2(-5, 7), at + Vector2(4, 12), at + Vector2(-2, 20)]), Color("744738"), 2.5, true)
+		# After its first contact the two-use floor switches to the one-use art.
+		if plat.durability == 2 and remaining == 1:
+			mark_batch.circle(Vector2(x, y + 7), 3, Color("ffdb58"))
 		if bool(plat.get("drop_on_contact", false)):
 			var warning := Vector2(x, y - 30)
-			mark_batch.polyline(PackedVector2Array([warning + Vector2(-10, -6), warning, warning + Vector2(10, -6)]), Color("7b326e"), 4.0, true)
-			mark_batch.line(warning + Vector2(0, -21), warning + Vector2(0, -7), Color("7b326e"), 3.0, true)
+			mark_batch.polyline(PackedVector2Array([warning + Vector2(-10, -6), warning, warning + Vector2(10, -6)]), Color("fff1a6"), 4.0, true)
+			mark_batch.line(warning + Vector2(0, -21), warning + Vector2(0, -7), Color("fff1a6"), 3.0, true)
 		elif bool(plat.get("instant_break", false)):
 			for arrow in [-1, 1]:
 				var warning := Vector2(x + arrow * 17, y - 28)
-				mark_batch.polyline(PackedVector2Array([warning + Vector2(-5, -4), warning, warning + Vector2(5, -4)]), Color("9b473c"), 3.0, true)
+				mark_batch.polyline(PackedVector2Array([warning + Vector2(-5, -4), warning, warning + Vector2(5, -4)]), Color("fff1a6"), 3.0, true)
 		if game.model.branch_exists(index, i) and bool(plat.get("branch_fragile", false)):
 			var bx: float = float(plat.branch_x)
 			var by: float = float(plat.branch_y) - camera
@@ -501,7 +493,7 @@ func draw_ink_effects() -> void:
 			build_ink_shapes(int(player.ink_seed))
 		var alpha := 0.94 * minf(1.0, player.ink / 0.24)
 		for shape in ink_shapes:
-			ink_batch.polygon(shape.points, Color(0.018, 0.035, 0.052, alpha))
+			painted_ink(shape.points, alpha)
 			ink_batch.polyline(shape.outline, Color(0.02, 0.16, 0.21, alpha * 0.55), 2.0, true)
 			ink_batch.circle(shape.highlight, shape.highlight_radius, Color(0.10, 0.27, 0.32, alpha * 0.32))
 			for satellite in shape.satellites:
@@ -509,7 +501,17 @@ func draw_ink_effects() -> void:
 			if shape.drip > 0:
 				ink_batch.line(shape.drip_from, shape.drip_to, Color(0.018, 0.035, 0.052, alpha), shape.drip_width, true)
 				ink_batch.circle(shape.drip_to, shape.drip_width * 0.7, Color(0.018, 0.035, 0.052, alpha))
-	ink_batch.submit(ink_canvas)
+	ink_batch.submit(ink_canvas, ITEMS)
+
+func painted_ink(points: PackedVector2Array, alpha: float) -> void:
+	var bounds := Rect2(points[0], Vector2.ZERO)
+	for point in points: bounds = bounds.expand(point)
+	var region: Rect2 = Art.OBJECT_REGIONS[Art.INK]
+	var base := ink_batch.points.size()
+	for point in points:
+		var uv := (region.position + (point - bounds.position) / bounds.size * region.size) / ITEMS.get_size()
+		ink_batch.vertex(point, Color(1, 1, 1, alpha), uv)
+	for corner in Geometry2D.triangulate_polygon(points): ink_batch.indices.append(base + corner)
 
 func draw_screen_effects() -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size(): return
@@ -561,59 +563,16 @@ func build_ink_shapes(seed: int) -> void:
 			"drip_width": rng.randf_range(5.0, 11.0)})
 
 func draw_creature(at: Vector2, world: int) -> void:
-	if world in [3, 4]:
-		var shell := Color("ef9b75") if world == 3 else Color("72c5ac")
-		for side in [-1, 1]:
-			for leg in range(3):
-				var start := at + Vector2(side * 13, -10 + leg * 3)
-				var knee := at + Vector2(side * (24 + leg * 2), -9 + leg * 4)
-				geometry.polyline(PackedVector2Array([start, knee, knee + Vector2(side * 3, 5)]), shell.darkened(0.2), 3, true)
-			geometry.circle(at + Vector2(side * 25, -24), 7, shell)
-			geometry.line(at + Vector2(side * 13, -15), at + Vector2(side * 25, -24), shell, 4, true)
-		geometry.circle(at + Vector2(0, -15), 16, shell.darkened(0.15))
-		geometry.circle(at + Vector2(0, -18), 13, shell)
-		geometry.arc(at + Vector2(-1, -17), 9, PI, PI * 1.7, 12, shell.lightened(0.35), 3, true)
-		for dx in [-6, 6]:
-			geometry.circle(at + Vector2(dx, -24), 4, Color("fff7dc"))
-			geometry.circle(at + Vector2(dx, -24), 2, Color("334441"))
-	else:
-		round_box(Rect2(at + Vector2(-23, -11), Vector2(48, 10)), Color("edc47c"), 5)
-		geometry.circle(at + Vector2(-3, -20), 16, Color("b46d42"))
-		geometry.arc(at + Vector2(-3, -20), 10, 0, 5.4, 18, Color("7c472f"), 3, true)
-		geometry.circle(at + Vector2(-3, -20), 4, Color("e5a265"))
-		for dx in [13, 23]:
-			geometry.line(at + Vector2(dx, -8), at + Vector2(dx, -28), Color("edc47c"), 4)
-			geometry.circle(at + Vector2(dx, -28), 5, Color("fff7dc"))
-			geometry.circle(at + Vector2(dx + 1, -28), 2.5, Color("334441"))
+	object_on_surface(Art.CRAB if world in [3, 4] else Art.SNAIL, at, 61 if world in [3, 4] else 49)
 
 func draw_power(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
-	icon(kind + 3, at, 64 * scale_factor)
+	atlas_item(self, [Art.SHIELD, Art.MAGNET, Art.RESCUE][kind], at, 54 * scale_factor)
 
 func draw_item(at: Vector2, kind: int, scale_factor: float = 1.0) -> void:
 	atlas_item(self, kind + 1, at, 68 * scale_factor)
 
 func draw_finish(at: Vector2) -> void:
-	var world: int = game.model.world
-	if world in [0, 4]:
-		round_box(Rect2(at + Vector2(-26, -140), Vector2(52, 140)), Color("976e53"), 16)
-		for dx in [-47, 0, 47]: geometry.circle(at + Vector2(dx, -143 - (20 if dx == 0 else 0)), 57, Color("569e7d") if world == 0 else Color("498f97"))
-		if world == 4:
-			for i in range(7): star(at + Vector2(cos(i * TAU / 7) * 64, -140 + sin(i * TAU / 7) * 33), 7)
-	elif world == 3:
-		round_box(Rect2(at + Vector2(-34, -172), Vector2(68, 172)), Color("fff0d4"), 10)
-		for y in [-40, -100]: geometry.rect(Rect2(at + Vector2(-34, y), Vector2(68, 23)), Color("e8967d"))
-		round_box(Rect2(at + Vector2(-41, -185), Vector2(82, 39)), Color("efc872"), 9)
-		star(at + Vector2(0, -166), 13)
-	else:
-		var tint := Color("dde0f4") if world == 1 else Color("9ddde9")
-		for dx in [-40, 0, 40]:
-			var top := -110.0 if dx != 0 else -155.0
-			round_box(Rect2(at + Vector2(dx - 21, top), Vector2(42, -top)), tint, 9)
-			geometry.polygon(PackedVector2Array([at + Vector2(dx - 28, top), at + Vector2(dx, top - 36), at + Vector2(dx + 28, top)]), tint.lightened(0.2))
-	round_box(Rect2(at + Vector2(-22, -57), Vector2(44, 57)), Color("fff0cc"), 17)
-	star(at + Vector2(0, -34), 13)
-	geometry.line(at + Vector2(85, 0), at + Vector2(85, -110), Color("785c46"), 4)
-	geometry.polygon(PackedVector2Array([at + Vector2(85, -110), at + Vector2(128, -95), at + Vector2(85, -80)]), Color("efb867"))
+	object_on_surface(Art.FINISH, at, 152)
 	if game.state == "finish" and not game.low_detail:
 		for i in range(12):
 			var phase: float = fposmod(game.total_time * 0.4 + i / 12.0, 1)
@@ -655,28 +614,19 @@ func configure_terrain() -> void:
 		row_depths.append(-float(plat.y))
 		row_margin = maxf(row_margin, absf(float(plat.get("branch_y", plat.y)) - float(plat.y)) + 150.0)
 		var tile: Sprite2D = terrain[i]
-		tile.modulate = Color("e998d0") if bool(plat.get("drop_on_contact", false)) else (Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)))
-		var offset := Vector2.ZERO
-		if game.model.world == 0:
-			tile.texture = PLATFORM; tile.region_enabled = false
-			var sx: float = plat.w / (PLATFORM.get_width() * 0.86)
-			tile.scale = Vector2(sx, sx * 0.9)
-			offset = Vector2(-plat.w / 0.86 / 2, -148 * sx * 0.9)
-		else:
-			tile.texture = EXTRA_TILES if game.model.world >= 3 else WORLD_TILES
-			tile.region_enabled = true
-			var tw := float(tile.texture.get_width()); var th := float(tile.texture.get_height())
-			tile.region_rect = Rect2(0, th * [0.0, 0.125, 0.5664, 0.13, 0.55][game.model.world], tw, th * 0.33)
-			var sx: float = plat.w / (tw * 0.93)
-			tile.scale = Vector2.ONE * sx
-			offset = Vector2(-plat.w / 0.93 / 2, -th * [0.0, 0.02, 0.02, 0.03, 0.064][game.model.world] * sx)
-		offsets.append(offset)
-		var ratio: float = float(plat.get("branch_w", plat.w)) / plat.w
+		var art_id := Art.platform_id(game.model.world, Art.platform_kind(plat, game.model.remaining_jumps(index, i)))
+		offsets.append(register_tile(tile, float(plat.w), art_id))
 		var branch: Sprite2D = branches[i]
-		branch.texture = tile.texture; branch.region_enabled = tile.region_enabled
-		branch.region_rect = tile.region_rect; branch.scale = tile.scale * ratio
-		branch.modulate = Color("c7f3b0") if bool(plat.get("branch_safe", false)) else (Color("ffad9e") if bool(plat.get("branch_fragile", false)) else Color("ffe093"))
-		branch_offsets.append(offset * ratio)
+		var branch_kind := 2 if bool(plat.get("branch_fragile", false)) else 1
+		branch_offsets.append(register_tile(branch, float(plat.get("branch_w", plat.w)), Art.platform_id(game.model.world, branch_kind)))
+
+func register_tile(tile: Sprite2D, width: float, art_id: int) -> Vector2:
+	tile.texture = PLATFORM; tile.region_enabled = true
+	tile.region_filter_clip_enabled = true
+	tile.region_rect = Art.PLATFORM_REGIONS[art_id]
+	tile.scale = Vector2.ONE * width / tile.region_rect.size.x
+	tile.modulate = Color.WHITE
+	return Vector2(-width * 0.5, -float(Art.LANDING_LIPS[art_id]) * tile.scale.y)
 
 func row_bound(depth: float) -> int:
 	var first := 0

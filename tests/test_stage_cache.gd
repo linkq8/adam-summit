@@ -27,9 +27,10 @@ func run():
 	p.camera -= 0.1; p.p.y -= 0.1
 	await settle()
 	check(counts.terrain == 0 and counts.marks == 0, "Subpixel scrolling translates cached terrain and marks")
+	var prior_region: Rect2 = stage.terrain[5].region_rect
 	p.platform_hits[5] = 1
 	await settle()
-	check(counts.marks > 0 and counts.terrain == 0, "A durability change updates marks without rebuilding static geometry")
+	check(counts.marks > 0 and counts.terrain > 0 and stage.terrain[5].region_rect != prior_region, "First landing updates the two-use floor to cracked one-use art")
 	p.platform_hits[6] = 1
 	await settle()
 	check(not stage.terrain[6].visible and counts.terrain > 0, "Instant-break floor disappears from the cached batch")

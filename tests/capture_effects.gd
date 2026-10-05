@@ -5,6 +5,7 @@ func _initialize() -> void:
 	call_deferred("capture")
 
 func capture() -> void:
+	root.size = Vector2i(1920, 1080)
 	var game = load("res://main.tscn").instantiate()
 	root.add_child(game)
 	game.demo = true

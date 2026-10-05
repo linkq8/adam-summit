@@ -46,9 +46,9 @@ func route_finish_time(chapter: int, shortcut_route: bool) -> float:
 
 func _initialize() -> void:
 	check(Model.ADVENTURE_STEPS == 120 and Model.STEPS == 52, "Adventure courses have 120 rows; endless retains a 52-row buffer")
-	var item_texture: Texture2D = load("res://assets/ui/surprise-items-v2.png")
+	var item_texture: Texture2D = load("res://assets/art-v3/objects.png")
 	var item_art := item_texture.get_image()
-	check(not item_art.is_empty() and item_art.get_size() == Vector2i(768, 512) and item_art.detect_alpha() != Image.ALPHA_NONE, "Painted item atlas keeps transparent padding")
+	check(not item_art.is_empty() and item_art.get_size() == Vector2i(1024, 1024) and item_art.detect_alpha() != Image.ALPHA_NONE, "Current painted item atlas keeps transparent padding")
 	check(Model.BOX_STEPS[-1] <= Model.STEPS - 8, "Battle effects stop well before the summit")
 	var signatures := []
 	for stage in range(3):
