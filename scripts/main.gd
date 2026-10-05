@@ -5,22 +5,17 @@ const Stage = preload("res://scripts/stage.gd")
 const Tilt = preload("res://scripts/tilt_control.gd")
 const FONT = preload("res://assets/fonts/Vazirmatn.ttf")
 const DISPLAY_FONT = preload("res://assets/fonts/Lalezar.ttf")
-const Lettering = preload("res://scripts/lettering.gd")
 const GamePace = preload("res://scripts/game_pace.gd")
 const AdventureButton = preload("res://scripts/menu_button.gd")
-const SIGN_IVORY = preload("res://assets/ui/menu-sign-ivory-v1.png")
-const SIGN_GOLD = preload("res://assets/ui/menu-sign-gold-v1.png")
-const MENU_SCROLL = preload("res://assets/ui/menu-scroll-v1.png")
-const MENU_TOKEN = preload("res://assets/ui/menu-token-v1.png")
 const MENU_ICONS = preload("res://assets/ui/menu-actions.svg")
-const MENU_GOLD := Color("f3c45e")
-const MENU_CREAM := Color("fff5dc")
-const MENU_TEAL := Color("173f3e")
+const MENU_GOLD := Color("ffce56")
+const MENU_CREAM := Color("f6fcf8")
+const MENU_TEAL := Color("123e48")
 const GameArt = preload("res://scripts/game_art.gd")
 const ITEM_ART = GameArt.OBJECTS
 const WORLD_ART_PATH := "res://assets/ui/world-islands-v1.png"
 var world_art: Texture2D
-const MENU_ART_PATH := "res://assets/ui/menu-camp-v1.png"
+const MENU_ART_PATH := "res://assets/ui/menu-sky-v2.png"
 var menu_art: Texture2D
 const BACKGROUND = preload("res://assets/garden-v2.png")
 const BLUE := Color("167a95")
@@ -125,9 +120,12 @@ var tutorial_starts_run := false
 var illustration: Sprite2D
 var help_time := 0.0
 var storage_path := "user://journey.json"
+var last_back_msec := -1000
 
 func _ready() -> void:
 	Engine.max_fps = 60
+	# Android Back must reach our state machine instead of quitting immediately.
+	get_tree().quit_on_go_back = false
 	Input.use_accumulated_input = false
 	updater = preload("res://scripts/updater.gd").new()
 	add_child(updater)
@@ -305,21 +303,13 @@ func layout_ui() -> void:
 	queue_redraw()
 func box(parent: Node, rect: Rect2, fill: Color, border: Color = Color.TRANSPARENT, radius: int = 20) -> Panel:
 	var panel := Panel.new()
-	panel.position = rect.position
-	panel.size = rect.size
+	panel.position = rect.position; panel.size = rect.size
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style: StyleBox
-	# Large menu sheets use the generated scroll; gameplay HUD and tiny separators retain their lightweight surfaces.
-	if parent == modal and rect.size.x >= 260 and rect.size.y >= 240:
-		style = illustrated_style(MENU_SCROLL, Rect2(33, 0, 1013, 1448))
-	else:
-		var flat := StyleBoxFlat.new()
-		flat.bg_color = fill
-		flat.set_corner_radius_all(radius)
-		if border.a > 0:
-			flat.set_border_width_all(2)
-			flat.border_color = border
-		style = flat
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.set_corner_radius_all(mini(radius, 16))
+	if border.a > 0:
+		style.set_border_width_all(2); style.border_color = border
 	panel.add_theme_stylebox_override("panel", style)
 	parent.add_child(panel)
 	return panel
@@ -336,7 +326,6 @@ func label(parent: Node, text: String, rect: Rect2, font_size: int = 22, color: 
 	item.add_theme_color_override("font_color", color)
 	item.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(item)
-	Lettering.paint(item, text, Rect2(Vector2.ZERO, rect.size), alignment, font_size * 1.35)
 	return item
 
 func illustrated_style(texture: Texture2D, region: Rect2, tint: Color = Color.WHITE) -> StyleBoxTexture:
@@ -349,49 +338,41 @@ func illustrated_style(texture: Texture2D, region: Rect2, tint: Color = Color.WH
 
 # The leaves and wooden border are decoration, not the text's layout box.
 # These shared insets follow the pale writing surface of the generated assets.
-func sign_content(size: Vector2, compact: bool = false) -> Rect2:
-	return Rect2(size * Vector2(0.15, 0.24), size * Vector2(0.70, 0.52)) if compact else Rect2(size * Vector2(0.12, 0.24), size * Vector2(0.76, 0.58))
+func sign_content(size: Vector2, _compact: bool = false) -> Rect2:
+	return Rect2(Vector2(20, 8), size - Vector2(40, 16))
 
 func button(parent: Node, text: String, rect: Rect2, callback: Callable, primary: bool = false) -> Button:
 	var b := AdventureButton.new()
-	b.text = text
-	b.position = rect.position
-	b.size = rect.size
-	b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var compact := rect.size.x / rect.size.y < 2.6
-	var content := sign_content(rect.size, compact)
-	var font_size := 21 if tv else 22
-	var text_width := content.size.x
-	var face := FONT
-	while font_size > 14 and face.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > text_width:
+	b.text = text; b.position = rect.position; b.size = Vector2(rect.size.x, maxf(64 if not tv else 44, rect.size.y))
+	b.add_theme_font_override("font", DISPLAY_FONT)
+	var font_size := 26 if tv else 25
+	while font_size > 16 and DISPLAY_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > rect.size.x - 36:
 		font_size -= 1
 	b.add_theme_font_size_override("font_size", font_size)
 	for key in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
-		b.add_theme_color_override(key, INK)
-	b.add_theme_color_override("font_disabled_color", Color("526f68"))
-	var region := Rect2(20, 105, 2130, 475)
+		b.add_theme_color_override(key, MENU_TEAL)
+	b.add_theme_color_override("font_disabled_color", Color("52696e"))
 	for kind in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var texture: Texture2D = MENU_TOKEN if compact else SIGN_GOLD if primary or kind == "focus" else SIGN_IVORY
-		var area := Rect2(0, 15, 1275, 1205) if compact else region
-		var tint := Color.WHITE
-		if kind == "pressed": tint = Color(0.85, 0.89, 0.84)
-		elif kind == "hover": tint = Color(1.04, 1.03, 1.0)
-		elif kind == "disabled": tint = Color(0.80, 0.83, 0.79, 0.9)
-		elif compact and (primary or kind == "focus"): tint = Color(1.0, 0.85, 0.55)
-		var skin := illustrated_style(texture, area, tint)
-		skin.content_margin_left = 28 if not compact else 11
-		skin.content_margin_right = 28 if not compact else 11
+		var skin := StyleBoxFlat.new()
+		skin.bg_color = MENU_GOLD if primary else MENU_CREAM
+		if kind == "hover": skin.bg_color = Color("e0f3ec") if not primary else Color("ffdb7e")
+		if kind == "pressed": skin.bg_color = Color("b6dfd2") if not primary else Color("edb737")
+		if kind == "disabled": skin.bg_color = Color("cbdeda")
+		skin.set_corner_radius_all(16)
+		skin.corner_radius_top_left = 8; skin.corner_radius_bottom_right = 8
+		skin.content_margin_left = 20; skin.content_margin_right = 20
+		skin.content_margin_top = 6; skin.content_margin_bottom = 6
 		if kind == "focus":
+			skin.bg_color = Color("fff1b7")
+			skin.set_border_width_all(4); skin.border_color = MENU_TEAL
 			skin.expand_margin_left = 3; skin.expand_margin_right = 3
 			skin.expand_margin_top = 3; skin.expand_margin_bottom = 3
 		b.add_theme_stylebox_override(kind, skin)
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.accessibility_name = text
 	b.pressed.connect(callback)
-	b.focus_entered.connect(b.queue_redraw)
-	b.focus_exited.connect(b.queue_redraw)
+	b.focus_entered.connect(b.queue_redraw); b.focus_exited.connect(b.queue_redraw)
 	parent.add_child(b)
-	if Lettering.paint(b, text, content, HORIZONTAL_ALIGNMENT_CENTER, minf(content.size.y, 36.0)):
-		b.accessibility_name = text
 	return b
 
 func clear_modal() -> void:
@@ -426,33 +407,27 @@ func menu_icon(parent: Node, index: int, rect: Rect2) -> void:
 func menu_action(text: String, detail: String, rect: Rect2, callback: Callable, icon: int, primary: bool = false) -> Button:
 	var b := button(modal, "", rect, callback, primary)
 	b.name = "MenuAction" + str(icon)
-	b.tooltip_text = text
-	b.accessibility_name = text
-	b.accessibility_description = detail
-	var has_detail := not detail.is_empty()
+	b.accessibility_name = text; b.accessibility_description = detail
 	var content := sign_content(rect.size)
-	var icon_size := 28.0 if rect.size.y >= 70 else 24.0
-	menu_icon(b, icon, Rect2(content.end.x - icon_size, content.get_center().y - icon_size / 2, icon_size, icon_size))
+	var icon_size := 30.0
+	menu_icon(b, icon, Rect2(rect.size.x - 52, rect.size.y / 2 - 15, 30, 30))
 	b.get_child(0).name = "ActionIcon"
-	# Reserve equal space on both sides so the words center on the sign itself,
-	# while the icon has its own lane on the right.
-	var gutter := icon_size + 10.0
-	var text_rect := Rect2(content.position + Vector2(gutter, 0), content.size - Vector2(gutter * 2, 0))
-	var detail_height := 24.0 if has_detail else 0.0
-	var gap := 3.0 if has_detail else 0.0
-	var title_height := minf(34.0 if has_detail else 38.0, content.size.y - detail_height - gap)
+	var text_width := rect.size.x - 124
+	var title_font := 29 if tv else 27
+	var detail_font := 14 if rect.size.y <= 90 else 16
+	var gap := 2.0 if not detail.is_empty() else 0.0
+	var detail_height := ceilf(FONT.get_height(detail_font)) + 1.0 if not detail.is_empty() else 0.0
+	while title_font > 20 and DISPLAY_FONT.get_height(title_font) + detail_height + gap > content.size.y:
+		title_font -= 1
+	var title_height := DISPLAY_FONT.get_height(title_font)
 	var group_height := title_height + detail_height + gap
-	var y := content.get_center().y - group_height / 2
-	var title := label(b, text, Rect2(text_rect.position.x, y, text_rect.size.x, title_height), 24, INK)
-	title.name = "ActionTitle"
-	title.clip_text = true
-	if has_detail:
-		var detail_size := 14
-		while detail_size > 12 and FONT.get_string_size(detail, HORIZONTAL_ALIGNMENT_LEFT, -1, detail_size).x > text_rect.size.x:
-			detail_size -= 1
-		var description := label(b, detail, Rect2(text_rect.position.x, y + title_height + gap, text_rect.size.x, detail_height), detail_size, Color("365954"))
-		description.name = "ActionDetail"
-		description.clip_text = true
+	var y := (rect.size.y - group_height) / 2
+	var title := label(b, text, Rect2(62, y, text_width, title_height), title_font, MENU_TEAL)
+	title.add_theme_font_override("font", DISPLAY_FONT)
+	title.name = "ActionTitle"; title.clip_text = true
+	if not detail.is_empty():
+		var description := label(b, detail, Rect2(62, y + title_height + gap, text_width, detail_height), detail_font, Color("375d62"))
+		description.name = "ActionDetail"; description.clip_text = true
 		description.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	b.set_meta("sign_content", content)
 	return b
@@ -482,40 +457,40 @@ func menu_landing(at: Vector2, width: float) -> void:
 	modal.add_child(ground)
 
 func menu_title(text: String, rect: Rect2, font_size: int = 62) -> void:
-	var title := label(modal, text, rect, font_size, MENU_CREAM)
-	if title.has_meta("painted_lettering"): return
-	title.add_theme_color_override("font_outline_color", INK)
-	title.add_theme_constant_override("outline_size", 5)
+	var title := label(modal, text, rect, font_size, MENU_TEAL)
+	title.add_theme_color_override("font_outline_color", Color("f5fcf9"))
+	title.add_theme_constant_override("outline_size", 4)
 
 func show_lobby() -> void:
 	setup_active = false
+	held_keys.clear(); drag_id = -1
 	if endless_mode:
-		endless_mode = false
-		player_count = endless_previous_players
-		remote_player = endless_previous_remote
+		endless_mode = false; player_count = endless_previous_players; remote_player = endless_previous_remote
 	if tv: show_tv_lobby(); return
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var width := minf(490, canvas_size.x - 40)
+	var w := minf(470, canvas_size.x - 48)
+	var x := (canvas_size.x - w) / 2
 	var available := canvas_size.y - safe_top - safe_bottom
-	var hero_h := minf(440, available - 278)
-	var x := (canvas_size.x - width) / 2
-	var top := safe_top + maxf(0, (available - hero_h - 278) / 2)
-	menu_title("مغامرات آدم", Rect2(x, top, width, 90))
-	var feet := Vector2(canvas_size.x / 2, top + hero_h - 14)
-	menu_landing(feet + Vector2(-112, -2), 224)
-	var height := minf(280, hero_h - 114)
-	illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
-	var y := top + hero_h + 18
-	menu_action("لاعب واحد", "اختر مغامرتك، ثم انطلق", Rect2(x, y, width, 104), func(): enter_play_setup(1), 0, true).grab_focus()
-	menu_action("الإعدادات", "", Rect2(x, y + 118, width, 70), func(): settings_return = "lobby"; show_settings(), 3)
-	menu_action("كيف ألعب؟", "", Rect2(x, y + 204, width, 70), show_tutorial, 4)
+	var top := safe_top + maxf(16, (available - 850) / 2)
+	var bottom := top + minf(850, available - 16)
+	menu_title("مغامرات آدم", Rect2(x, top, w, 94), 64)
+	label(modal, "قفزة جديدة… ومغامرة تنتظرك", Rect2(x, top + 91, w, 34), 19, MENU_TEAL)
+	var actions_y := bottom - 200
+	var height := minf(420, maxf(130, actions_y - top - 150))
+	var feet := Vector2(canvas_size.x / 2, actions_y - 26)
+	menu_landing(feet + Vector2(-122, 0), 244)
+	illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height, 2)
+	menu_action("لاعب واحد", "مراحل أو صعود لا نهائي", Rect2(x, actions_y, w, 100), func(): enter_play_setup(1), 0, true).grab_focus()
+	var half := (w - 14) / 2
+	button(modal, "الإعدادات", Rect2(x, actions_y + 118, half, 64), func(): settings_return = "lobby"; show_settings())
+	button(modal, "كيف ألعب؟", Rect2(x + half + 14, actions_y + 118, half, 64), show_tutorial)
 	queue_redraw()
 
 func enter_play_setup(count: int) -> void:
 	player_count = clampi(count, 1, 4) if tv else 1
 	if remote_player >= player_count: remote_player = -1
-	if tv and mobile and player_count == 1:
+	if tv and player_count == 1:
 		var connected := Input.get_connected_joypads()
 		remote_player = 0 if connected.is_empty() else -1
 		if not connected.is_empty() and not slots[0] in connected: slots[0] = connected[0]
@@ -540,57 +515,47 @@ func setup_outfits() -> void:
 	else: show_wardrobe(true)
 
 func show_play_setup() -> void:
-	setup_active = true
-	state = "setup"; clear_modal(); hud.hide()
+	setup_active = true; state = "setup"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var heading := "مغامرة لاعب واحد" if player_count == 1 else "مغامرة لاعبين" if player_count == 2 else "مغامرة %d لاعبين" % player_count
-	var outfit_detail: String = Wardrobe.OUTFITS[costume] if player_count == 1 else "لبس وأداة تحكم لكل لاعب"
-	var stage_detail: String = "مسار متجدد تلقائيًا" if player_count == 1 and solo_endless_selected else Worlds.WORLDS[level / 3] + " • المرحلة %d–%d" % [level / 3 + 1, level % 3 + 1]
-	var mode_detail: String = play_mode_name() + " • " + DIFFICULTIES[difficulty] + " • سرعة " + GamePace.NAMES[game_speed]
+	var heading := "جهّز مغامرتك" if player_count == 1 else "جهّزوا السباق"
+	var r := Rect2(698, 122, 508, 490) if tv else Rect2((canvas_size.x - minf(470, canvas_size.x - 48)) / 2, safe_top + 105, minf(470, canvas_size.x - 48), canvas_size.y - safe_top - safe_bottom - 190)
+	menu_title(heading, Rect2(64, 26, 1148, 80) if tv else Rect2(r.position.x, safe_top + 6, r.size.x, 80), 56 if tv else 44)
 	if tv:
-		menu_title(heading, Rect2(65, 36, 640, 104), 65)
-		var subtitle := label(modal, "جهّز اللبس والمرحلة وطريقة اللعب", Rect2(68, 140, 630, 42), 24, MENU_CREAM)
-		subtitle.add_theme_color_override("font_outline_color", INK)
-		subtitle.add_theme_constant_override("outline_size", 4)
-		menu_landing(Vector2(110, 565), 535)
-		var spacing := 126.0 if player_count > 2 else 202.0
-		var height := 268.0 if player_count > 2 else 340.0
+		menu_landing(Vector2(111, 576), 492)
+		var spacing := 115.0 if player_count > 2 else 198.0
+		var height := 245.0 if player_count > 2 else 320.0
 		for i in range(player_count):
-			var feet := Vector2(376 - (player_count - 1) * spacing / 2 + i * spacing, 573)
+			var feet := Vector2(358 - (player_count - 1) * spacing / 2 + i * spacing, 576)
 			portrait(modal, player_outfits[i] if player_count > 1 else costume, feet - Vector2(0, height / 2), height, 0, player_packs[i] if player_count > 1 else backpack)
-		var x := 774.0; var w := 410.0
-		menu_action("اللبس", outfit_detail, Rect2(x, 110, w, 100), setup_outfits, 2)
-		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, 222, w, 100), show_worlds, 5), player_count == 1 and solo_endless_selected)
-		menu_action("طريقة اللعب", mode_detail, Rect2(x, 334, w, 100), show_play_modes, 6)
 		if player_count > 1:
-			label(modal, "عدد اللاعبين", Rect2(92, 625, 160, 48), 21, MENU_CREAM)
-			for count in range(2, 5):
-				button(modal, str(count), Rect2(270 + (count - 2) * 80, 625, 66, 48), func(): enter_play_setup(count), player_count == count)
-		menu_action("ابدأ اللعب", "", Rect2(x, 456, w, 78), setup_start, 0, true).grab_focus()
-		var back := Rect2(x, 626, w, 56)
-		if player_count == 1 and not solo_endless_selected and not saved_game.is_empty():
-			menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, 552, w, 56), restore_journey, 8)
-		menu_action("رجوع", "", back, show_lobby, 8)
-	else:
-		var available := canvas_size.y - safe_top - safe_bottom
-		var width := minf(490, canvas_size.x - 40)
-		var has_save := not solo_endless_selected and not saved_game.is_empty()
-		var content_h := 544.0 + (78.0 if has_save else 0.0)
-		var hero_h := minf(360, available - content_h)
-		var x := (canvas_size.x - width) / 2
-		var top := safe_top + maxf(0, (available - hero_h - content_h) / 2)
-		menu_title(heading, Rect2(x, top - 4, width, 76), 46)
-		var feet := Vector2(canvas_size.x / 2, top + hero_h - 12)
-		menu_landing(feet + Vector2(-100, -2), 200)
-		var height := minf(220, hero_h - 82)
-		illustration = portrait(modal, costume, feet - Vector2(0, height / 2), height)
-		var y := top + hero_h + 18
-		menu_action("اللبس", outfit_detail, Rect2(x, y, width, 96), setup_outfits, 2)
-		disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, y + 112, width, 96), show_worlds, 5), solo_endless_selected)
-		menu_action("طريقة اللعب", mode_detail, Rect2(x, y + 224, width, 96), show_play_modes, 6)
-		menu_action("ابدأ اللعب", "", Rect2(x, y + 344, width, 84), setup_start, 0, true).grab_focus()
-		if has_save: menu_action("أكمل رحلتك المحفوظة", "", Rect2(x, y + 444, width, 64), restore_journey, 8)
-		menu_action("رجوع", "", Rect2(x, y + 444 + (78 if has_save else 0), width, 64), show_lobby, 8)
+			box(modal, Rect2(118, 615, 460, 64), MENU_CREAM)
+			label(modal, "عدد اللاعبين", Rect2(134, 623, 152, 48), 22)
+			for count in range(2, 5): button(modal, str(count), Rect2(309 + (count - 2) * 80, 623, 64, 48), func(): enter_play_setup(count), player_count == count)
+	var x := r.position.x; var w := r.size.x; var y := r.position.y
+	var names := ["المراحل", "لا نهائي"] if player_count == 1 else ["سباق", "تعاون", "مفاجآت"]
+	var selected := (1 if solo_endless_selected else 0) if player_count == 1 else (2 if surprise_mode else 1 if cooperative else 0)
+	label(modal, "اختر الطور", Rect2(x, y, w, 34), 23, MENU_TEAL, HORIZONTAL_ALIGNMENT_RIGHT)
+	var mode_w := (w - (names.size() - 1) * 10) / names.size()
+	for id in range(names.size()):
+		var mode := button(modal, names[id], Rect2(x + id * (mode_w + 10), y + 42, mode_w, 58), func(): choose_play_mode(id), selected == id)
+		mode.name = "QuickMode%d" % id
+	label(modal, "سقوط واحد ينهي المحاولة • النقاط حسب الارتفاع" if player_count == 1 and solo_endless_selected else "اختر طريقك والأرضية الأنسب للصعود", Rect2(x, y + 108, w, 30), 16)
+	var outfit_detail: String = Wardrobe.OUTFITS[costume] if player_count == 1 else "الملابس وأداة التحكم لكل لاعب"
+	menu_action("اللبس", outfit_detail, Rect2(x, y + 154, w, 80), setup_outfits, 2)
+	var stage_detail: String = "مسار متجدد" if player_count == 1 and solo_endless_selected else Worlds.WORLDS[level / 3] + " • %d–%d" % [level / 3 + 1, level % 3 + 1]
+	disable_stage_choice(menu_action("المرحلة", stage_detail, Rect2(x, y + 248, w, 80), show_worlds, 5), player_count == 1 and solo_endless_selected)
+	var half := (w - 12) / 2
+	button(modal, "طريقة اللعب", Rect2(x, y + 344, half, 56), show_play_modes)
+	button(modal, "سرعة %d٪" % roundi(GamePace.RATES[game_speed] * 100), Rect2(x + half + 12, y + 344, half, 56), func(): speed_return = "setup"; show_speed_options()).name = "SetupSpeed"
+	if not tv:
+		var preview_h := minf(235, maxf(0, r.size.y - 530))
+		if preview_h >= 74: illustration = portrait(modal, costume, Vector2(canvas_size.x / 2, y + 422 + preview_h / 2), preview_h)
+	var start_y := 550.0 if tv else canvas_size.y - safe_bottom - 152
+	menu_action("ابدأ اللعب", "", Rect2(x, start_y, w, 74), setup_start, 0, true).grab_focus()
+	if player_count == 1 and not solo_endless_selected and not saved_game.is_empty():
+		button(modal, "أكمل المحفوظة", Rect2(x, start_y + 86, half, 50), restore_journey)
+		button(modal, "رجوع", Rect2(x + half + 12, start_y + 86, half, 50), show_lobby)
+	else: button(modal, "رجوع", Rect2(x, start_y + 86, w, 50), show_lobby)
 	queue_redraw()
 
 func choose_play_mode(id: int) -> void:
@@ -601,27 +566,30 @@ func choose_play_mode(id: int) -> void:
 		surprise_mode = id == 2
 		save_options()
 	show_play_setup()
+	var choice := modal.get_node_or_null("QuickMode%d" % id)
+	if choice is Button: choice.grab_focus()
 
 func show_play_modes() -> void:
 	state = "mode_select"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	var r := menu_rect
-	box(modal, r, MENU_CREAM, Color.TRANSPARENT, 24)
-	label(modal, "طريقة اللعب", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 60)), 36)
+	var r := Rect2(90, 142, 1100, 486) if tv else menu_rect
+	menu_title("طريقة اللعب", Rect2(r.position.x, r.position.y - (104 if tv else 0), r.size.x, 72), 52 if tv else 40)
 	var names := ["مغامرة المراحل", "صعود لا نهائي"] if player_count == 1 else ["سباق القمّة", "تعاون", "سباق المفاجآت"]
 	var descriptions := ["اصعد إلى نهاية المرحلة", "سقوط واحد ينهي المحاولة"] if player_count == 1 else ["الفائز أول من يصل إلى القمة", "تصلون إلى القمة معًا", "صناديق وأدوات بين المتسابقين"]
 	var selected := (1 if solo_endless_selected else 0) if player_count == 1 else (2 if surprise_mode else 1 if cooperative else 0)
+	var column_w := (r.size.x - (names.size() - 1) * 20) / names.size() if tv else r.size.x
 	for id in range(names.size()):
-		button(modal, names[id] + (" ✓" if selected == id else ""), Rect2(r.position + Vector2(24, 115 + id * 88), Vector2(r.size.x - 48, 56)), func(): choose_play_mode(id), selected == id)
-		label(modal, descriptions[id], Rect2(r.position + Vector2(24, 171 + id * 88), Vector2(r.size.x - 48, 30)), 17)
-	var y := 115.0 + names.size() * 88.0 + 12.0
-	label(modal, "الصعوبة", Rect2(r.position + Vector2(24, y), Vector2(r.size.x - 48, 38)), 23)
-	var width := (r.size.x - 64) / 3
+		var at := r.position + Vector2(id * (column_w + 20), 0) if tv else r.position + Vector2(0, 92 + id * 96)
+		var choice := button(modal, names[id], Rect2(at, Vector2(column_w, 92 if tv else 54)), func(): choose_play_mode(id), selected == id)
+		label(modal, descriptions[id], Rect2(at + Vector2(0, 98 if tv else 68), Vector2(column_w, 30)), 20 if tv else 17)
+		if id == selected: choice.grab_focus()
+	var y := r.position.y + (192 if tv else 112 + names.size() * 96)
+	label(modal, "الصعوبة", Rect2(r.position.x, y, r.size.x, 40), 27)
+	var width := (r.size.x - 24) / 3
 	for id in range(3):
-		var choice := button(modal, DIFFICULTIES[id], Rect2(r.position + Vector2(24 + id * (width + 8), y + 42), Vector2(width, 54)), func(): difficulty = id; easy = id == 0; save_options(); show_play_modes(), difficulty == id)
-		choice.add_theme_font_size_override("font_size", 17)
-	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position + Vector2(24, y + 108), Vector2(r.size.x - 48, 54)), func(): speed_return = "mode_select"; show_speed_options())
-	button(modal, "رجوع إلى تجهيز اللعب", Rect2(r.position + Vector2(24, r.size.y - 88), Vector2(r.size.x - 48, 64)), show_play_setup).grab_focus()
+		button(modal, DIFFICULTIES[id], Rect2(r.position.x + id * (width + 12), y + 48, width, 58), func(): difficulty = id; easy = id == 0; save_options(); show_play_modes(), difficulty == id)
+	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position.x, y + 126, r.size.x, 58), func(): speed_return = "mode_select"; show_speed_options())
+	button(modal, "رجوع إلى تجهيز اللعب", Rect2(r.position.x, r.end.y - 64, r.size.x, 64), show_play_setup)
 
 func controller_text(i: int) -> String:
 	return "يد %d متّصلة ✓" % (i + 1) if slots[i] in Input.get_connected_joypads() else "الزر السفلي للانضمام"
@@ -631,6 +599,7 @@ func begin_adventure() -> void:
 	if remote_player >= player_count: remote_player = 0
 	if tv and mobile:
 		var connected := Input.get_connected_joypads()
+		if player_count == 1 and connected.is_empty(): remote_player = 0
 		for i in range(player_count):
 			if i == remote_player: continue
 			if not slots[i] in connected:
@@ -690,9 +659,20 @@ func finish_tutorial() -> void:
 func menu_back() -> void:
 	if state == "speed_select": return_from_speed_options()
 	elif state in ["updates", "controls"]: show_settings()
-	elif state in ["worlds", "wardrobe", "players", "mode_select", "tutorial"]: return_to_play_menu()
+	elif state == "paused": resume_race()
+	elif state in ["racing", "countdown"]: pause_race()
+	elif state in ["worlds", "wardrobe", "players", "mode_select", "tutorial", "finish"]: return_to_play_menu()
 	elif state == "settings" and settings_return == "paused": state = "paused"; layout_ui()
+	elif state == "lobby": get_tree().quit()
 	else: show_lobby()
+
+func handle_back() -> void:
+	# Some Android remotes deliver both Escape and the native go-back callback.
+	# Debounce only Back; ordinary focus/navigation keys remain immediate.
+	var now := Time.get_ticks_msec()
+	if now - last_back_msec < 180: return
+	last_back_msec = now
+	menu_back()
 
 func build_hud() -> void:
 	for c in hud.get_children(): hud.remove_child(c); c.queue_free()
@@ -882,7 +862,7 @@ func read_directions():
 	if not tv and drag_id != -1: result[0] = clampf((drag_target - model.players[0].p.x) / 22.0, -1, 1)
 	result[0] += float(held_keys.get(KEY_D, false)) - float(held_keys.get(KEY_A, false))
 	var keyboard_player := remote_player if tv and remote_player >= 0 and remote_player < player_count else (1 if player_count > 1 else 0)
-	if not (tv and mobile and remote_player < 0):
+	if not (tv and mobile and player_count > 1 and remote_player < 0):
 		result[keyboard_player] += float(held_keys.get(KEY_RIGHT, false)) - float(held_keys.get(KEY_LEFT, false))
 	for i in range(player_count):
 		if i == remote_player: continue
@@ -914,16 +894,24 @@ func recenter_tilt() -> void:
 		read_tilt()
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton and tv and state in ["racing", "countdown"] and not slots.has(event.device) and (player_count == 1 or remote_player >= 0):
+		var remote_keys := {JOY_BUTTON_DPAD_LEFT: KEY_LEFT, JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT, JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN}
+		if remote_keys.has(event.button_index):
+			held_keys[remote_keys[event.button_index]] = event.pressed
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventJoypadMotion and state not in ["racing", "countdown"]:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventJoypadButton and event.pressed and event.button_index == JOY_BUTTON_B:
-		if state == "paused": resume_race()
-		elif state in ["racing", "countdown"]: pause_race()
-		else: menu_back()
+		handle_back()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventKey: held_keys[event.physical_keycode if event.physical_keycode != 0 else event.keycode] = event.pressed
+	if event is InputEventKey:
+		var key: int = event.keycode if event.keycode in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN, KEY_ESCAPE, KEY_BACK, KEY_ENTER] else (event.physical_keycode if event.physical_keycode != 0 else event.keycode)
+		held_keys[key] = event.pressed
+		if tv and state in ["racing", "countdown"] and key in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+			get_viewport().set_input_as_handled()
 	if not tv and state == "racing":
 		if event is InputEventScreenTouch:
 			var on_item_button := is_instance_valid(touch_item_button) and touch_item_button.visible and Rect2(touch_item_button.position, touch_item_button.size).has_point(event.position)
@@ -945,16 +933,18 @@ func _input(event: InputEvent) -> void:
 		elif not mobile and event is InputEventMouseMotion and drag_id == -2:
 			move_drag(event.relative.x)
 	if event is InputEventJoypadButton and event.pressed:
-		if not slots.has(event.device) and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_START]:
-			for i in range(4 if tv else 1):
+		if state not in ["racing", "countdown"] and not slots.has(event.device) and event.device in Input.get_connected_joypads() and event.button_index in [JOY_BUTTON_A, JOY_BUTTON_START]:
+			if player_count == 1 and remote_player == 0: remote_player = -1
+			for i in range(player_count):
 				if i == remote_player: continue
 				if not slots[i] in Input.get_connected_joypads():
 					slots[i] = event.device
-					if state == "lobby": show_lobby()
-					elif state == "paused": show_pause()
-					elif state == "players": show_players(i * 3 + 2)
-					get_viewport().set_input_as_handled()
-					return
+					if state == "paused" or state == "players":
+						if state == "paused": show_pause()
+						else: show_players(i * 3 + 2)
+						get_viewport().set_input_as_handled()
+						return
+					break
 		if event.button_index == JOY_BUTTON_A and state == "racing" and model.surprise_mode:
 			var item_player := slots.find(event.device)
 			if item_player >= 0 and item_player < player_count:
@@ -973,18 +963,17 @@ func _input(event: InputEvent) -> void:
 			elif state == "setup": setup_start()
 			get_viewport().set_input_as_handled()
 	if event is InputEventKey and event.pressed and not event.echo:
-		var pressed_key: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
+		var pressed_key: int = event.keycode if event.keycode in [KEY_ESCAPE, KEY_BACK, KEY_ENTER] else (event.physical_keycode if event.physical_keycode != 0 else event.keycode)
 		if state == "racing" and model.surprise_mode and pressed_key in [KEY_ENTER, KEY_SPACE]:
 			var item_player := remote_player if remote_player >= 0 and remote_player < player_count else 0
 			handle_game_events(model.use_item(item_player))
 			get_viewport().set_input_as_handled()
 			return
-		if event.physical_keycode in [KEY_ESCAPE, KEY_P]:
-			if state == "paused": resume_race()
-			elif state in ["racing", "countdown"]: pause_race()
-			else: menu_back()
+		if pressed_key in [KEY_ESCAPE, KEY_BACK, KEY_P]:
+			if pressed_key == KEY_P: menu_back()
+			else: handle_back()
 			get_viewport().set_input_as_handled()
-		elif event.physical_keycode == KEY_F3:
+		elif pressed_key == KEY_F3:
 			toggle_performance()
 
 func controller_changed(device: int, connected: bool) -> void:
@@ -1034,53 +1023,39 @@ func toggle_performance() -> void:
 	save_options()
 
 func show_settings() -> void:
-	state = "settings"
-	clear_modal()
-	hud.hide()
-	for v in views: v.hide()
-	var r := menu_rect
-	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
-	label(modal, "على راحتك", Rect2(r.position + Vector2(20, 24), Vector2(r.size.x - 40, 64)), 36)
-	for i in range(2):
-		var y := r.position.y + 100 + i * 90
-		label(modal, "الموسيقى" if i == 0 else "المؤثرات والإرشاد الصوتي", Rect2(r.position.x + 25, y, r.size.x - 50, 35), 22)
-		var slider := HSlider.new()
-		slider.position = Vector2(r.position.x + 40, y + 40)
-		slider.size = Vector2(r.size.x - 80, 32)
-		slider.min_value = 0
-		slider.max_value = 1
-		slider.step = 0.1
-		slider.value = music_volume if i == 0 else effects_volume
-		modal.add_child(slider)
-		slider.value_changed.connect(func(value):
-			if i == 0: music_volume = value
-			else: effects_volume = value
-			apply_audio(); save_options())
-	button(modal, "تقليل الحركة والمؤثرات: " + ("نعم" if low_detail else "لا"), Rect2(r.position + Vector2(20, 286), Vector2(r.size.x - 40, 54)), func(): low_detail = not low_detail; save_options(); show_settings())
+	state = "settings"; clear_modal(); hud.hide()
+	for view in views: view.hide()
+	var r := Rect2(100, 145, 1080, 492) if tv else menu_rect
+	menu_title("الإعدادات", Rect2(r.position.x, r.position.y - (106 if tv else 0), r.size.x, 74), 52 if tv else 42)
+	var w := (r.size.x - 36) / 2 if tv else r.size.x
+	var x := r.position.x; var y := r.position.y if tv else r.position.y + 98
+	label(modal, "الصوت", Rect2(x, y, w, 38), 27)
+	button(modal, "الموسيقى %d٪" % roundi(music_volume * 100), Rect2(x, y + 50, w, 58), func(): music_volume = 0.0 if music_volume > 0.95 else snappedf(music_volume + 0.1, 0.1); apply_audio(); save_options(); show_settings()).name = "MusicVolume"
+	button(modal, "المؤثرات %d٪" % roundi(effects_volume * 100), Rect2(x, y + 122, w, 58), func(): effects_volume = 0.0 if effects_volume > 0.95 else snappedf(effects_volume + 0.1, 0.1); apply_audio(); save_options(); show_settings()).name = "EffectsVolume"
 	if tv:
-		var quality_text := "جودة اللعب: تلقائية • حتى " + ("1080p" if tv_native_resolution or tv_balanced_resolution else "720p") if player_count > 1 else "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else ("متوازنة 1080p" if tv_balanced_resolution else "اقتصادية 720p"))
-		button(modal, quality_text, Rect2(r.position + Vector2(20, 350), Vector2(r.size.x - 40, 48)), func():
+		label(modal, "الريموت يعمل مباشرة دون إعدادات الجهاز", Rect2(x, y + 218, w, 40), 20)
+		label(modal, "الأسهم للتحرك • رجوع للاستراحة", Rect2(x, y + 264, w, 40), 20)
+		x += w + 36
+	else: y += 190
+	label(modal, "اللعب والتحكم", Rect2(x, y, w, 38), 27)
+	button(modal, "المؤثرات: " + ("خفيفة" if low_detail else "كاملة"), Rect2(x, y + 40, w, 58), func(): low_detail = not low_detail; save_options(); show_settings())
+	if tv:
+		var quality_text := "الجودة: تلقائية حتى " + ("1080p" if tv_native_resolution or tv_balanced_resolution else "720p") if player_count > 1 else "دقة التلفاز: " + ("دقة الشاشة" if tv_native_resolution else "1080p" if tv_balanced_resolution else "720p")
+		button(modal, quality_text, Rect2(x, y + 122, w, 58), func():
 			if player_count > 1:
-				var was_balanced := tv_native_resolution or tv_balanced_resolution
-				tv_native_resolution = false; tv_balanced_resolution = not was_balanced
+				var balanced := tv_native_resolution or tv_balanced_resolution
+				tv_native_resolution = false; tv_balanced_resolution = not balanced
 			elif tv_native_resolution: tv_native_resolution = false; tv_balanced_resolution = false
 			elif tv_balanced_resolution: tv_native_resolution = true
 			else: tv_balanced_resolution = true
 			apply_render_quality(); save_options(); layout_ui())
-
-	if not tv:
-		var control_y := 350.0
-		var control_w := (r.size.x - 50) * 0.5
-		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(r.position + Vector2(20, control_y), Vector2(control_w, 54)), func(): haptics = not haptics; save_options(); show_settings())
-		if mobile:
-			button(modal, "التحكم: " + ("ميلان وسحب" if tilt_enabled else "سحب فقط"), Rect2(r.position + Vector2(30 + control_w, control_y), Vector2(control_w, 54)), show_control_settings)
-			label(modal, "جاهز تلقائيًا • خيارات إضافية بالداخل", Rect2(r.position + Vector2(20, control_y + 60), Vector2(r.size.x - 40, 32)), 17)
-
-	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(r.position + Vector2(20, 408 if tv else 452), Vector2(r.size.x - 40, 54)), func(): speed_return = "settings"; show_speed_options())
-	if tv:
-		button(modal, "عرض FPS: " + ("مفعّل" if showing_perf else "مغلق"), Rect2(r.position + Vector2(20, 466), Vector2(r.size.x - 40, 48)), func(): toggle_performance(); show_settings()).name = "PerformanceToggle"
-	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 48)), show_updates)
-	button(modal, "تم  ✓", Rect2(r.position + Vector2(25, r.size.y - 92), Vector2(r.size.x - 50, 64)), func():
+		button(modal, "عرض FPS: " + ("مفعّل" if showing_perf else "مغلق"), Rect2(x, y + 194, w, 58), func(): toggle_performance(); show_settings()).name = "PerformanceToggle"
+	else:
+		button(modal, "التحكم: " + ("ميلان وسحب" if tilt_enabled else "سحب فقط"), Rect2(x, y + 112, w, 58), show_control_settings)
+		button(modal, "الاهتزاز: " + ("مفعّل" if haptics else "مغلق"), Rect2(x, y + 184, w, 58), func(): haptics = not haptics; save_options(); show_settings())
+	button(modal, "سرعة اللعب: " + GamePace.NAMES[game_speed], Rect2(x, y + (266 if tv else 256), w, 58), func(): speed_return = "settings"; show_speed_options())
+	button(modal, "تحديث اللعبة عبر GitHub", Rect2(r.position.x, r.end.y - 136, r.size.x, 56), show_updates)
+	button(modal, "تم", Rect2(r.position.x, r.end.y - 64, r.size.x, 64), func():
 		if settings_return == "paused": state = "paused"; layout_ui()
 		else: show_lobby(), true).grab_focus()
 
@@ -1100,13 +1075,14 @@ func show_speed_options() -> void:
 		choice.name = "GameSpeed%d" % chosen
 		choice.accessibility_name = text
 		choice.accessibility_description = descriptions[chosen]
-		label(modal, descriptions[chosen], Rect2(r.position + Vector2(24, 188 + chosen * 74), Vector2(r.size.x - 48, 24)), 16)
+		choice.tooltip_text = descriptions[chosen]
 		if game_speed == chosen: choice.grab_focus()
 	label(modal, "تُطبّق عند بدء المرحلة • نفس السرعة للجميع\nارتفاع القفزة ثابت، والعدّ التنازلي لا يتغيّر", Rect2(r.position + Vector2(24, 514), Vector2(r.size.x - 48, 64)), 17)
 	button(modal, "رجوع", Rect2(r.position + Vector2(24, r.size.y - 84), Vector2(r.size.x - 48, 56)), return_from_speed_options)
 
 func return_from_speed_options() -> void:
-	if speed_return == "mode_select": show_play_modes()
+	if speed_return == "setup": show_play_setup()
+	elif speed_return == "mode_select": show_play_modes()
 	else: show_settings()
 
 func reset_control_defaults() -> void:
@@ -1296,10 +1272,7 @@ func _notification(what: int) -> void:
 		if state in ["racing", "countdown"]: pause_race()
 		stop_audio()
 	if what == NOTIFICATION_APPLICATION_FOCUS_IN and is_instance_valid(music): apply_audio()
-	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		if state in ["racing", "countdown"]: pause_race()
-		elif state != "lobby": menu_back()
-		else: get_tree().quit()
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST: handle_back()
 
 func _process(dt: float) -> void:
 	update_render_budget(dt)
@@ -1363,8 +1336,8 @@ func _draw() -> void:
 		draw_texture_rect(art, Rect2(Vector2(-(size.x - canvas_size.x) * (0.3 if not tv else 0.5), (canvas_size.y - size.y) / 2), size), false)
 		return
 	if state in ["players", "worlds", "wardrobe", "mode_select", "speed_select", "settings", "controls", "updates", "tutorial"]:
-		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("f5edda"))
-		draw_rect(Rect2(0, 0, canvas_size.x, 12), Color("cf7652"))
+		draw_rect(Rect2(Vector2.ZERO, canvas_size), Color("bfe9ef"))
+		draw_rect(Rect2(0, canvas_size.y - 16, canvas_size.x, 16), Color("3c9e8f"))
 		return
 	if state in ["racing", "countdown", "paused", "finish"] and model.world > 0:
 		var texture: Texture2D = Stage.EXTRA_BG if model.world >= 3 else Stage.WORLD_BG
@@ -1424,37 +1397,35 @@ func reward_stars() -> int:
 	return total
 
 func show_wardrobe(reset: bool = false) -> void:
-	if reset:
-		preview_outfit = costume
-		preview_pack = backpack
-	state = "wardrobe"
-	hud.hide()
+	if reset: preview_outfit = costume; preview_pack = backpack
+	state = "wardrobe"; hud.hide()
 	for view in views: view.hide()
 	clear_modal()
-	var r := menu_rect
-	box(modal, r, Color("fff9e9"), Color("f3d080"), 30)
-	label(modal, "خزانة آدم", Rect2(r.position + Vector2(10, 14), Vector2(r.size.x - 20, 60)), 34)
-	label(modal, "نجوم إنجازاتك: ★ %d" % reward_stars(), Rect2(r.position + Vector2(10, 78), Vector2(r.size.x - 20, 35)), 22)
-	illustration = portrait(modal, preview_outfit, r.position + Vector2(r.size.x / 2, 215), 190)
-	var choices := [Wardrobe.OUTFITS, Wardrobe.PACKS]
-	var costs := [Wardrobe.OUTFIT_COST, Wardrobe.PACK_COST]
-	var selected := [preview_outfit, preview_pack]
-	var allowed := true
-	for category in range(2):
-		var price: int = costs[category][selected[category]]
-		var open := reward_stars() >= price
-		allowed = allowed and open
-		button(modal, choices[category][selected[category]] + (" ✓" if open else " • ★ %d" % price), Rect2(r.position + Vector2(25, 324 + category * 59), Vector2(r.size.x - 50, 48)), func():
-			match category:
-				0: preview_outfit = (preview_outfit + 1) % Wardrobe.OUTFITS.size()
-				1: preview_pack = (preview_pack + 1) % Wardrobe.PACKS.size()
-			show_wardrobe())
-	var wear := button(modal, "ارتدِ هذه الملابس ✓" if allowed else "اجمع نجومًا لفتح هذه المكافأة", Rect2(r.position + Vector2(25, r.size.y - 150), Vector2(r.size.x - 50, 58)), func():
+	var r := Rect2(72, 126, 1136, 532) if tv else menu_rect
+	menu_title("اختر لبس آدم", Rect2(r.position.x, r.position.y - (84 if tv else 0), r.size.x, 72), 48)
+	var colors := [Color("daeefb"), Color("ffead3"), Color("dcefd6"), Color("eee1fb")]
+	var height := 240.0 if tv else minf(215, (r.size.y - 292) / 2)
+	var columns := 4 if tv else 2
+	var width := (r.size.x - 18 * (columns - 1)) / columns
+	for id in range(4):
+		var x := r.position.x + (id % columns) * (width + 18)
+		var y := r.position.y + (0 if tv else 82) + (id / columns) * (height + 18)
+		var open: bool = reward_stars() >= Wardrobe.OUTFIT_COST[id]
+		var choice := button(modal, "", Rect2(x, y, width, height), func(): preview_outfit = id; show_wardrobe(), id == preview_outfit)
+		choice.name = "Outfit%d" % id; choice.accessibility_name = Wardrobe.OUTFITS[id]
+		var art_h := height - 58
+		portrait(choice, id, Vector2(width / 2, art_h / 2 + 6), art_h, 0, preview_pack)
+		label(choice, Wardrobe.OUTFITS[id] if open else "نجوم %d" % Wardrobe.OUTFIT_COST[id], Rect2(8, height - 46, width - 16, 36), 23 if tv else 20)
+		if id == preview_outfit: choice.grab_focus()
+	var bottom := r.end.y
+	button(modal, Wardrobe.PACKS[preview_pack], Rect2(r.position.x, bottom - 210, r.size.x, 64), func(): preview_pack = (preview_pack + 1) % 3; show_wardrobe())
+	var allowed: bool = reward_stars() >= Wardrobe.OUTFIT_COST[preview_outfit] and reward_stars() >= Wardrobe.PACK_COST[preview_pack]
+	var wear := button(modal, "اعتمد اللبس" if allowed else "تحتاج نجومًا أكثر", Rect2(r.position.x, bottom - 132, r.size.x, 64), func():
 		if reward_stars() < Wardrobe.OUTFIT_COST[preview_outfit] or reward_stars() < Wardrobe.PACK_COST[preview_pack]: return
-		costume = preview_outfit; backpack = preview_pack
-		save_options(); return_to_play_menu(), true)
+		costume = preview_outfit; backpack = preview_pack; save_options(); return_to_play_menu(), true)
+	wear.name = "WearOutfit"
 	wear.disabled = not allowed
-	button(modal, "رجوع", Rect2(r.position + Vector2(25, r.size.y - 80), Vector2(r.size.x - 50, 52)), return_to_play_menu).grab_focus()
+	button(modal, "رجوع", Rect2(r.position.x, bottom - 64, r.size.x, 64), return_to_play_menu)
 
 func selection_surface(title: String, subtitle: String, next_state: String) -> void:
 	state = next_state
@@ -1462,22 +1433,23 @@ func selection_surface(title: String, subtitle: String, next_state: String) -> v
 	for view in views: view.hide()
 	label(modal, title, Rect2(72, 34, 1136, 78), 50, INK)
 	label(modal, subtitle, Rect2(90, 109, 1100, 36), 21, Color("47675e"))
-	box(modal, Rect2(82, 159, 1116, 2), Color("d1bf99"), Color.TRANSPARENT, 0)
-	label(modal, "الأسهم للتنقّل    •    الزر السفلي للاختيار    •    الزر الأيمن للرجوع", Rect2(90, 673, 1100, 28), 18, Color("47675e"))
+	box(modal, Rect2(82, 159, 1116, 2), Color("74b4b5"), Color.TRANSPARENT, 0)
+	label(modal, "الأسهم للتنقّل    •    زر الاختيار للتأكيد    •    رجوع للشاشة السابقة", Rect2(90, 673, 1100, 28), 18, Color("47675e"))
 	queue_redraw()
 
 func show_tv_lobby() -> void:
 	state = "lobby"; clear_modal(); hud.hide()
 	for view in views: view.hide()
-	menu_title("مغامرات آدم", Rect2(65, 50, 640, 124), 88)
-	menu_landing(Vector2(220, 565), 315)
-	portrait(modal, costume, Vector2(376, 403), 340)
-	var x := 774.0; var w := 410.0
-	menu_action("لاعب واحد", "مغامرتك نحو القمة", Rect2(x, 190, w, 104), func(): enter_play_setup(1), 0, true).grab_focus()
-	menu_action("لاعبان", "سباق أو تعاون", Rect2(x, 306, w, 104), func(): enter_play_setup(2), 6)
-	menu_action("الإعدادات", "", Rect2(x, 456, w, 64), func(): settings_return = "lobby"; show_settings(), 3)
-	menu_action("كيف ألعب؟", "", Rect2(x, 540, w, 64), show_tutorial, 4)
-	label(modal, "الأسهم للتنقّل • الزر السفلي للاختيار", Rect2(x, 644, w, 36), 18, MENU_CREAM)
+	menu_title("مغامرات آدم", Rect2(70, 54, 550, 120), 88)
+	label(modal, "اختر مغامرتك، واصعد إلى القمة", Rect2(86, 172, 518, 42), 25, MENU_TEAL)
+	menu_landing(Vector2(201, 598), 300)
+	portrait(modal, costume, Vector2(351, 407), 380, 2)
+	menu_action("لاعب واحد", "مغامرة المراحل أو الصعود اللانهائي", Rect2(704, 191, 490, 112), func(): enter_play_setup(1), 0, true).grab_focus()
+	menu_action("لاعبان", "٢ إلى ٤ لاعبين • سباق أو تعاون", Rect2(704, 326, 490, 112), func(): enter_play_setup(2), 6)
+	button(modal, "الإعدادات", Rect2(704, 475, 238, 66), func(): settings_return = "lobby"; show_settings())
+	button(modal, "كيف ألعب؟", Rect2(956, 475, 238, 66), show_tutorial)
+	box(modal, Rect2(704, 594, 490, 56), MENU_CREAM)
+	label(modal, "الأسهم للتنقل • زر الاختيار للبدء", Rect2(704, 603, 490, 40), 20, MENU_TEAL)
 	queue_redraw()
 
 func cycle_multiplayer_mode() -> void:
@@ -1500,9 +1472,9 @@ func show_players(focus_index: int = -1) -> void:
 	for i in range(player_count):
 		var width := minf(400, 1120.0 / player_count - 16)
 		var x := (1280 - (width + 16) * player_count + 16) / 2 + i * (width + 16)
-		box(modal, Rect2(x, 234, width, 388), [Color("dce9e4"), Color("f5dfce"), Color("e4e8c8"), Color("e8ddec")][i], Color.TRANSPARENT, 20)
-		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 240, width, 38), 23)
-		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 344), 130)
+		box(modal, Rect2(x, 190, width, 432), [Color("dce9e4"), Color("f5dfce"), Color("e4e8c8"), Color("e8ddec")][i], Color.TRANSPARENT, 20)
+		label(modal, "اللاعب %d" % (i + 1), Rect2(x, 198, width, 38), 23)
+		var avatar := portrait(modal, player_outfits[i], Vector2(x + width / 2, 323), 195)
 		Wardrobe.style(avatar, player_outfits[i], player_packs[i])
 		for category in range(2):
 			var names := [Wardrobe.OUTFITS, Wardrobe.PACKS]

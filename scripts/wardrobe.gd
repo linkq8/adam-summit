@@ -4,23 +4,23 @@ const OUTFIT_COST := [0, 0, 45, 120]
 const PACKS := ["الحقيبة الأصلية", "الحقيبة المرجانية", "الحقيبة البنفسجية"]
 const PACK_COST := [0, 60, 150]
 const CHARACTER_SHADER = preload("res://scripts/character.gdshader")
-const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v8.png", "res://assets/characters/adam-orange-v8.png", "res://assets/characters/adam-green-v8.png", "res://assets/characters/adam-purple-v8.png"]
+const CHARACTER_PATHS := ["res://assets/characters/adam-blue-v9.png", "res://assets/characters/adam-orange-v9.png", "res://assets/characters/adam-green-v9.png", "res://assets/characters/adam-purple-v9.png"]
 # Normalized midpoint of the shoe soles, measured per outfit and frame.
 const FOOT_ANCHORS := [
-	[Vector2(0.52148, 0.98047), Vector2(0.50439, 0.97461), Vector2(0.47119, 0.96484), Vector2(0.47607, 0.95898), Vector2(0.48242, 0.95703), Vector2(0.47705, 0.97266), Vector2(0.50391, 0.92578), Vector2(0.50879, 0.93164), Vector2(0.50342, 0.9707)],
-	[Vector2(0.52295, 0.98047), Vector2(0.50586, 0.97266), Vector2(0.46973, 0.96289), Vector2(0.47754, 0.95898), Vector2(0.48389, 0.95703), Vector2(0.47559, 0.9707), Vector2(0.50684, 0.92578), Vector2(0.50879, 0.93164), Vector2(0.50049, 0.96875)],
-	[Vector2(0.52295, 0.98047), Vector2(0.50439, 0.97461), Vector2(0.4668, 0.96094), Vector2(0.47607, 0.95703), Vector2(0.48242, 0.95508), Vector2(0.47412, 0.9707), Vector2(0.50684, 0.92578), Vector2(0.50732, 0.93164), Vector2(0.50342, 0.9707)],
-	[Vector2(0.52295, 0.98242), Vector2(0.50293, 0.97656), Vector2(0.46826, 0.96484), Vector2(0.47754, 0.96094), Vector2(0.48096, 0.95703), Vector2(0.47412, 0.97266), Vector2(0.50684, 0.92578), Vector2(0.50586, 0.93164), Vector2(0.50049, 0.9707)],
+	[Vector2(0.524476, 0.930823), Vector2(0.502365, 0.930826), Vector2(0.481199, 0.930836), Vector2(0.52019, 0.930829), Vector2(0.472286, 0.93083), Vector2(0.473281, 0.930829), Vector2(0.504453, 0.930829), Vector2(0.511134, 0.930838), Vector2(0.520037, 0.930836)],
+	[Vector2(0.515306, 0.930954), Vector2(0.446568, 0.930945), Vector2(0.47721, 0.930948), Vector2(0.43665, 0.930941), Vector2(0.478146, 0.930949), Vector2(0.470591, 0.930943), Vector2(0.495636, 0.93094), Vector2(0.508747, 0.930946), Vector2(0.490278, 0.93094)],
+	[Vector2(0.512305, 0.93084), Vector2(0.509984, 0.930853), Vector2(0.500131, 0.930841), Vector2(0.470231, 0.930845), Vector2(0.506792, 0.930854), Vector2(0.502221, 0.930844), Vector2(0.522212, 0.930851), Vector2(0.524479, 0.93084), Vector2(0.490136, 0.930852)],
+	[Vector2(0.522759, 0.931002), Vector2(0.481608, 0.930993), Vector2(0.472947, 0.930991), Vector2(0.504328, 0.931001), Vector2(0.484794, 0.930997), Vector2(0.480449, 0.930991), Vector2(0.522786, 0.931), Vector2(0.49458, 0.930996), Vector2(0.518446, 0.930991)],
 ]
-const BODY_HEIGHT := 0.90
+const BODY_HEIGHT := 0.8671875
 const VICTORY_FRAME := 8
 static func jump_frame(velocity_y: float, squash: float) -> int:
 	if squash > 0.68: return 7
-	if velocity_y < -470: return 1
-	if velocity_y < -260: return 2
-	if velocity_y < -70: return 3
-	if velocity_y < 70: return 4
-	if velocity_y < 250: return 5
+	if velocity_y < -800: return 1
+	if velocity_y < -440: return 2
+	if velocity_y < -120: return 3
+	if velocity_y < 120: return 4
+	if velocity_y < 420: return 5
 	return 6
 static func cell_size(sprite: Sprite2D) -> Vector2:
 	return sprite.texture.get_size() / 3.0
@@ -38,13 +38,6 @@ static func pose(sprite: Sprite2D, frame: int) -> void:
 	sprite.region_enabled = true
 	sprite.region_filter_clip_enabled = true
 	var rect := Rect2(Vector2(frame % 3, frame / 3) * cell, cell)
-	# Victory's raised fist extends above the nominal last-row boundary.
-	# Share the empty gutter rather than clipping the fist into descent.
-	var gutter := cell.y * (12.0 / 512.0)
-	if frame == 5: rect.size.y -= gutter
-	if frame == VICTORY_FRAME:
-		rect.position.y -= gutter
-		rect.size.y += gutter
 	sprite.region_rect = rect
 	sprite.set_meta("frame", frame)
 	align_feet(sprite)

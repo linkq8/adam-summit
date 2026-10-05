@@ -138,15 +138,10 @@ func run() -> void:
 	game.show_wardrobe(true)
 	game.preview_outfit = 2; game.preview_pack = 1
 	game.show_wardrobe()
-	var locked := false
-	for child in game.modal.get_children():
-		if child is Button and child.text.begins_with("اجمع نجومًا"): locked = child.disabled
-	check(locked and game.costume == equipped_before_preview, "Locked wardrobe preview does not equip")
+	check(game.modal.get_node("WearOutfit").disabled and game.costume == equipped_before_preview, "Locked wardrobe preview does not equip")
 	game.records = {"0": {"stars": 200}}
 	game.show_wardrobe()
-	for child in game.modal.get_children():
-		if child is Button and child.text.begins_with("ارتدِ"):
-			child.pressed.emit(); break
+	game.modal.get_node("WearOutfit").pressed.emit()
 	check(game.costume == 2 and game.backpack == 1, "Earned wardrobe items equip")
 	game.costume = 0; game.backpack = 0
 	game.load_options()

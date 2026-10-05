@@ -26,8 +26,8 @@ func run():
 		check(sprite.material.get_shader_parameter("pack_palette") == 2, "Backpack selection preserved")
 	check(textures.size() == 4, "Four genuinely distinct outfit atlases")
 	var sequence := []
-	for speed in [-600.0, -400.0, -180.0, 0.0, 160.0, 400.0]: sequence.append(Wardrobe.jump_frame(speed, 0))
-	sequence.append(Wardrobe.jump_frame(-710, 1))
+	for speed in [-1000.0, -650.0, -280.0, 0.0, 280.0, 650.0]: sequence.append(Wardrobe.jump_frame(speed, 0))
+	sequence.append(Wardrobe.jump_frame(-1200, 1))
 	check(sequence == [1, 2, 3, 4, 5, 6, 7], "Seven distinct ordered jump phases including contact")
 	holder.queue_free(); await process_frame
 	print("CHARACTER_ART_TESTS: ", "PASS" if failures == 0 else "FAIL")

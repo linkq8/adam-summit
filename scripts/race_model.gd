@@ -9,8 +9,8 @@ const COURSE_OFFSET := (WIDTH - AUTHOR_WIDTH) * 0.5
 const START_Y := 540.0
 const GAP := 102.0
 const STEPS := 52
-const GRAVITY := 1750.0
-const JUMP := 710.0
+const GRAVITY := 2400.0
+const JUMP := 1200.0
 const SPEED := 310.0
 const FINISH_Y := START_Y - STEPS * GAP
 const SPRING_CLEARANCE := [26.0, 34.0, 42.0]
@@ -50,14 +50,14 @@ var endless := false
 var endless_base := 0
 var endless_score := 0
 var ended := false
-# Adventure tuning shared by all chapters; endless retains its independent envelope.
+# Shared jump envelope in every chapter and endless.
 const ADVENTURE_STEPS := 120
 const FIRST_STAGE_STEPS := ADVENTURE_STEPS
 var course_steps := STEPS
 var gravity := GRAVITY
 var jump_speed := JUMP
-var actor_height := 138.0
-var landing_half_width := 13.0
+var actor_height := 110.4
+var landing_half_width := 10.4
 
 func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: int = -1, infinite: bool = false) -> void:
 	easy = assisted
@@ -68,10 +68,6 @@ func _init(assisted: bool = true, count: int = 2, chapter: int = 0, challenge: i
 	difficulty = (0 if assisted else 1) if challenge < 0 else clampi(challenge, 0, 2)
 	if not endless:
 		course_steps = ADVENTURE_STEPS
-		gravity = 2400.0
-		jump_speed = 1200.0
-		actor_height *= 0.8
-		landing_half_width *= 0.8
 	if endless:
 		for step_index in range(STEPS + 1):
 			platforms.append(_endless_platform(step_index, START_Y if step_index == 0 else float(platforms[-1].y)))
@@ -105,7 +101,7 @@ func _endless_platform(absolute_index: int, previous_y: float) -> Dictionary:
 		return {"x": CENTER, "y": START_Y, "w": 400.0, "durability": 0, "moving": false, "checkpoint": false, "spring": false, "mud": false, "sticky": false, "orb": false, "enemy": false}
 	# Approach the physics-safe limits gradually without a hard difficulty step.
 	var tier: float = float(absolute_index) / (float(absolute_index) + 100.0)
-	var gap: float = [81.0, 97.0, 109.0, 89.0, 117.0, 92.0][absolute_index % 6] + tier * 11.0
+	var gap: float = [94.0, 124.0, 149.0, 108.0, 166.0, 116.0][absolute_index % 6] + tier * 24.0
 	var desired_lane: float = [390.0, 170.0, 315.0, 225.0, 365.0, 195.0, 280.0][absolute_index % 7] + COURSE_OFFSET
 	var previous_x: float = float(platforms[-1].x)
 	var lane: float = clampf(desired_lane, previous_x - 145.0, previous_x + 145.0)

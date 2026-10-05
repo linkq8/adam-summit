@@ -10,6 +10,7 @@ func action(name: String) -> Button:
 	return null
 func back() -> void:
 	var e := InputEventJoypadButton.new(); e.button_index = JOY_BUTTON_B; e.pressed = true
+	game.last_back_msec = -1000
 	game._input(e)
 func run() -> void:
 	game = load("res://main.tscn").instantiate(); root.add_child(game)
@@ -51,8 +52,10 @@ func run() -> void:
 	check(game.state == "tutorial" and game.tutorial_starts_run, "First start retains onboarding")
 	game.finish_tutorial(); check(game.state == "countdown", "Start onboarding continues the prepared session")
 	game.show_lobby(); game.enter_play_setup(1); game.show_worlds(); game.demo = false
+	game.last_back_msec = -1000
 	game._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(game.state == "setup", "Android back returns from submenus to setup")
+	game.last_back_msec = -1000
 	game._notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	check(game.state == "lobby", "Android back from setup returns home")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(game.storage_path))

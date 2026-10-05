@@ -1,5 +1,15 @@
 # Adam’s Summit design and implementation
 
+## v0.8.23 replacement menus, cartoon Adam and TV input
+
+Current menus replace old illustrated scroll/sign controls with the clean cartoon sky panorama, large live Lalezar Arabic labels, teal focus outlines and honey selected actions. Home branches into solo or TV multiplayer before a single setup exposes mode, outfit, world and 80–200% speed. The outfit screen shows all four actual v9 avatars together. Settings use explicit volume choices and stable focusable controls. See design/MENU-0823.md for the reference observations and design contract.
+
+Four distinct alpha sprite sheets replace natural v8 avatars. Nine registered poses include standing, seven jump phases and victory; atlas packing preserves silhouettes, common scale and measured sole anchors. Old chroma removal is eliminated. Original child reference photos and generation sources stay private.
+
+All modes now share gravity 2400, launch speed 1200, actor height 110.4 and landing half-width 10.4. Endless gaps vary from 94–166 plus gradual growth, safely below the 300-unit apex. Adventure geometry and physics remain unchanged. SceneTree.quit_on_go_back is disabled; one debounced state policy handles native Back and logical Escape. Solo remote arrows work regardless of old remote assignments or plugged-in controllers. Unassigned remote D-pad button events also steer; multiplayer remote ownership stays explicit. Root Back exits, nested Back unwinds, active play pauses and pause resumes.
+
+Regression coverage includes native/keyboard/remote Back, actual endless steering, duplicate event rejection, all 15 courses, seven poses, route/fall rules, fixed-step speed parity, menu flow and nonoverlapping controls across small phones and tablet orientations. Benchmarks are local host evidence, not a physical Shield FPS guarantee.
+
 ## v0.8.15 shared gameplay pace
 
 Speed is a separate preference from difficulty and steering sensitivity: Calm 80%, Normal 100% (default), Fast 120%. A dedicated choice screen is reachable from settings and the session's Play Mode screen; setup summarizes the selected pace. Existing parchment/sign artwork and centered lettering layout are retained. The choice applies to the next stage/run and is captured once for the complete shared race, including all TV racers. Countdown, menu input, save intervals and audio remain on their original clocks.
