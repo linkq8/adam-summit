@@ -14,13 +14,13 @@ const EXTRA_BG = preload("res://assets/coast-forest-backgrounds.png")
 const EXTRA_TILES = preload("res://assets/coast-forest-platforms.png")
 var terrain_batch := Batch.new()
 var terrain_canvas: Node2D
-var geometry := Batch.new()
+var geometry := Batch.new(true)
 var icon_batch := Atlas.new()
 var item_batch := Atlas.new()
-var mark_batch := Batch.new()
-var ink_batch := Batch.new()
+var mark_batch := Batch.new(true)
+var ink_batch := Batch.new(true)
 var ink_canvas: Node2D
-var fx_batch := Batch.new()
+var fx_batch := Batch.new(true)
 var fx_items := Atlas.new()
 var power_texts: Array[Dictionary] = []
 var fx_ink := -1.0
@@ -48,6 +48,10 @@ var configured_model: RefCounted
 var configured_base := -1
 var offsets: Array[Vector2] = []
 var branch_offsets: Array[Vector2] = []
+var row_depths := PackedFloat32Array()
+var row_margin := 230.0
+var row_first := 0
+var row_end := 0
 var old_frame := -1
 var old_row := -1
 var old_pack := -1
@@ -110,7 +114,12 @@ func _process(dt: float) -> void:
 	render_camera = camera
 	terrain_canvas.position.y = -camera
 	marks.position.y = -camera
-	for i in range(terrain.size()):
+	var previous_first := row_first
+	var previous_end := row_end
+	row_first = row_bound(-(camera + view_height + row_margin))
+	row_end = row_bound(-(camera - row_margin))
+	# Visit entering/leaving visible rows, not the complete 120-row chapter.
+	for i in range(mini(previous_first, row_first), maxi(previous_end, row_end)):
 		if i >= game.model.platforms.size():
 			terrain_dirty = terrain_dirty or terrain[i].visible or branches[i].visible
 			terrain[i].visible = false; branches[i].visible = false
@@ -260,6 +269,9 @@ func cloud(at: Vector2, s: float, alpha: float) -> void:
 func _draw() -> void:
 	if not is_visible_in_tree() or game == null or game.model == null or index >= game.model.players.size():
 		return
+	# A course can change after this node's process callback (including a save
+	# restore or paused transition). Synchronize the visibility cache before draw.
+	if configured_model != game.model or configured_base != game.model.endless_base: _process(0.0)
 	geometry.clear(); icon_batch.clear(); item_batch.clear(); power_texts.clear()
 	var model = game.model
 	var player: Dictionary = model.players[index]
@@ -284,7 +296,7 @@ func _draw() -> void:
 	for k in range(0):
 		var cy := fposmod(k * 177.0 - camera * 0.15, 660.0) - 50
 		cloud(Vector2(30 + k * 137, cy), 1.3, 0.94)
-	for i in range(model.platforms.size()):
+	for i in range(row_first, row_end):
 		var plat: Dictionary = model.platforms[i]
 		var y: float = plat.y - camera
 		if y < -140 or y > view_height + 90:
@@ -634,8 +646,14 @@ func configure_terrain() -> void:
 	configured_base = game.model.endless_base
 	ink_cache_seed = -1; fx_seed = -2
 	offsets.clear(); branch_offsets.clear()
+	row_depths.clear(); row_margin = 230.0
+	row_first = 0; row_end = 0
+	for tile in terrain: tile.visible = false
+	for branch in branches: branch.visible = false
 	for i in range(game.model.platforms.size()):
 		var plat: Dictionary = game.model.platforms[i]
+		row_depths.append(-float(plat.y))
+		row_margin = maxf(row_margin, absf(float(plat.get("branch_y", plat.y)) - float(plat.y)) + 150.0)
 		var tile: Sprite2D = terrain[i]
 		tile.modulate = Color("e998d0") if bool(plat.get("drop_on_contact", false)) else (Color("ff9f91") if bool(plat.get("instant_break", false)) else (Color("ffc1b0") if plat.durability == 1 else (Color("ffe0a0") if plat.durability == 2 else Color.WHITE)))
 		var offset := Vector2.ZERO
@@ -659,3 +677,12 @@ func configure_terrain() -> void:
 		branch.region_rect = tile.region_rect; branch.scale = tile.scale * ratio
 		branch.modulate = Color("c7f3b0") if bool(plat.get("branch_safe", false)) else (Color("ffad9e") if bool(plat.get("branch_fragile", false)) else Color("ffe093"))
 		branch_offsets.append(offset * ratio)
+
+func row_bound(depth: float) -> int:
+	var first := 0
+	var last := row_depths.size()
+	while first < last:
+		var middle := (first + last) / 2
+		if row_depths[middle] < depth: first = middle + 1
+		else: last = middle
+	return first

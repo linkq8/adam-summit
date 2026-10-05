@@ -1,0 +1,113 @@
+{
+  "version": "0.8.20",
+  "device": "Apple M1 Pro desktop, no attached Android TV",
+  "baseline": "0.8.19",
+  "after": "0.8.20",
+  "before_frame": [
+    {
+      "adaptive": false,
+      "ink": false,
+      "level": 0,
+      "median_draw_calls": 84.0,
+      "median_ms": 9.501,
+      "over_budget_percent": 0.833333333333333,
+      "p95_ms": 13.937,
+      "p99_ms": 15.982,
+      "players": 4,
+      "quality_changes": 0,
+      "render_pixels": "(1920, 1080)",
+      "speed": 1
+    },
+    {
+      "adaptive": false,
+      "ink": true,
+      "level": 0,
+      "median_draw_calls": 96.0,
+      "median_ms": 11.37,
+      "over_budget_percent": 3.75,
+      "p95_ms": 16.092,
+      "p99_ms": 18.138,
+      "players": 4,
+      "quality_changes": 0,
+      "render_pixels": "(1920, 1080)",
+      "speed": 4
+    }
+  ],
+  "after_frame": [
+    {
+      "adaptive": false,
+      "ink": false,
+      "level": 0,
+      "median_draw_calls": 84.0,
+      "median_ms": 7.656,
+      "over_budget_percent": 0.0,
+      "p95_ms": 11.06,
+      "p99_ms": 12.58,
+      "players": 4,
+      "quality_changes": 0,
+      "render_pixels": "(1920, 1080)",
+      "speed": 1
+    },
+    {
+      "adaptive": false,
+      "ink": true,
+      "level": 0,
+      "median_draw_calls": 96.0,
+      "median_ms": 9.539,
+      "over_budget_percent": 1.25,
+      "p95_ms": 12.938,
+      "p99_ms": 18.797,
+      "players": 4,
+      "quality_changes": 0,
+      "render_pixels": "(1920, 1080)",
+      "speed": 4
+    }
+  ],
+  "before_scene_cpu": [
+    {
+      "four_stage_draw_us": 3360.0,
+      "four_stage_update_us": 1112.0,
+      "frame_ms": 9.245,
+      "level": 0,
+      "physics_us": 234
+    },
+    {
+      "four_stage_draw_us": 1488.0,
+      "four_stage_update_us": 861.0,
+      "frame_ms": 6.876,
+      "level": 3,
+      "physics_us": 254
+    },
+    {
+      "four_stage_draw_us": 1429.0,
+      "four_stage_update_us": 908.0,
+      "frame_ms": 7.21,
+      "level": 12,
+      "physics_us": 254
+    }
+  ],
+  "after_scene_cpu": [
+    {
+      "four_stage_draw_us": 1791.0,
+      "four_stage_update_us": 503.0,
+      "frame_ms": 7.539,
+      "level": 0,
+      "physics_us": 234
+    },
+    {
+      "four_stage_draw_us": 1052.0,
+      "four_stage_update_us": 419.0,
+      "frame_ms": 5.899,
+      "level": 3,
+      "physics_us": 242
+    },
+    {
+      "four_stage_draw_us": 1004.0,
+      "four_stage_update_us": 397.0,
+      "frame_ms": 5.413,
+      "level": 12,
+      "physics_us": 231
+    }
+  ],
+  "physical_tv_60fps_verified": false
+}

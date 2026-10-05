@@ -6,13 +6,19 @@ var colors := PackedColorArray()
 var uv := PackedVector2Array()
 var indices := PackedInt32Array()
 static var rings: Dictionary = {}
+static var arc_cache: Dictionary = {}
+const MASK = preload("res://assets/ui/vector-mask.svg")
+const WHITE_UV := Vector2(0.9, 0.5)
+var masked := false
+func _init(use_mask: bool = false) -> void:
+	masked = use_mask
 
 func clear() -> void:
 	points.clear(); colors.clear(); uv.clear(); indices.clear()
 
-func vertex(at: Vector2, color: Color, tex: Vector2 = Vector2.ZERO) -> int:
+func vertex(at: Vector2, color: Color, tex: Vector2 = Vector2(-1, -1)) -> int:
 	var id := points.size()
-	points.append(at); colors.append(color); uv.append(tex)
+	points.append(at); colors.append(color); uv.append((WHITE_UV if masked else Vector2.ZERO) if tex.x < 0 else tex)
 	return id
 
 func tri(a: int, b: int, c: int) -> void:
@@ -20,8 +26,9 @@ func tri(a: int, b: int, c: int) -> void:
 
 func submit(canvas: CanvasItem, texture: Texture2D = null) -> void:
 	if indices.is_empty(): return
+	var source := MASK if masked and texture == null else texture
 	RenderingServer.canvas_item_add_triangle_array(canvas.get_canvas_item(), indices, points, colors, uv,
-		PackedInt32Array(), PackedFloat32Array(), texture.get_rid() if texture != null else RID())
+		PackedInt32Array(), PackedFloat32Array(), source.get_rid() if source != null else RID())
 
 func rect_region(rect: Rect2, source: Rect2, texture: Texture2D, color: Color) -> void:
 	var s := texture.get_size()
@@ -35,6 +42,12 @@ func circle(at: Vector2, radius: float, color: Color) -> void:
 	ellipse(at, radius, radius, color)
 
 func ellipse(at: Vector2, rx: float, ry: float, color: Color, smooth: bool = false) -> void:
+	if masked:
+		# One quad replaces up to 145 freshly generated vertices. The small shared
+		# alpha mask keeps circles/ellipses in the same ordered vector submission.
+		var radius := Vector2(rx, ry) * (64.0 / 62.0)
+		rect_region(Rect2(at - radius, radius * 2), Rect2(0, 0, 128, 128), MASK, color)
+		return
 	var count := clampi(ceili(maxf(rx, ry) * 0.6), 12, 48)
 	if not rings.has(count):
 		var ring := PackedVector2Array()
@@ -70,9 +83,27 @@ func polyline(path: PackedVector2Array, color: Color, width: float = 1.0, smooth
 	for i in range(path.size() - 1): line(path[i], path[i + 1], color, width, smooth)
 
 func arc(at: Vector2, radius: float, start: float, end: float, count: int, color: Color, width: float = 1.0, smooth: bool = false) -> void:
-	var path := PackedVector2Array()
-	for i in range(count): path.append(at + Vector2.from_angle(lerpf(start, end, float(i) / (count - 1))) * radius)
-	polyline(path, color, width, smooth)
+	var key := [masked, radius, start, end, count, color, width, smooth]
+	if not arc_cache.has(key):
+		# Build the ring once. Native packed-array transforms translate it each
+		# frame instead of hundreds of GDScript vertex/color/index appends.
+		if arc_cache.size() >= 128: arc_cache.clear()
+		var template = get_script().new(masked)
+		var path := PackedVector2Array()
+		for i in range(count): path.append(Vector2.from_angle(lerpf(start, end, float(i) / (count - 1))) * radius)
+		template.polyline(path, color, width, smooth)
+		arc_cache[key] = {"points": template.points, "colors": template.colors, "uv": template.uv, "indices": template.indices, "offsets": {}}
+	var cached: Dictionary = arc_cache[key]
+	var base := points.size()
+	if not cached.offsets.has(base):
+		if cached.offsets.size() >= 128: cached.offsets.clear()
+		var shifted := PackedInt32Array()
+		shifted.resize(cached.indices.size())
+		for i in range(shifted.size()): shifted[i] = cached.indices[i] + base
+		cached.offsets[base] = shifted
+	points.append_array(Transform2D(0, at) * cached.points)
+	colors.append_array(cached.colors); uv.append_array(cached.uv)
+	indices.append_array(cached.offsets[base])
 
 func polygon(path: PackedVector2Array, color: Color) -> void:
 	var triangles := Geometry2D.triangulate_polygon(path)
